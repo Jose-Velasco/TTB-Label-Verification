@@ -1,0 +1,37 @@
+{
+  // Workspace-level settings — these apply when the folder is opened outside
+  // the dev container too (e.g. if you have Python/Node installed locally).
+  // The devcontainer.json also sets these for the container environment.
+
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests/", "-v"],
+  "python.testing.cwd": "${workspaceFolder}/backend",
+
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "eslint.workingDirectories": [{ "directory": "frontend" }],
+
+  // Trim trailing whitespace on save
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}

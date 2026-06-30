@@ -1,0 +1,26 @@
+### TTB Label Verification — REST Client snippets
+### Requires the "REST Client" extension (humao.rest-client)
+### Run these in order: login first to get the auth cookie.
+
+@baseUrl = http://localhost:8000
+
+# ── 1. Login ─────────────────────────────────────────────────────────────────
+# @name login
+POST {{baseUrl}}/api/login
+Content-Type: application/json
+
+{
+  "password": "dev-access-key-change-me"
+}
+
+###
+
+# ── 2. Health check ───────────────────────────────────────────────────────────
+GET {{baseUrl}}/api/health
+
+###
+
+# ── 3. Logout ─────────────────────────────────────────────────────────────────
+GET {{baseUrl}}/api/logout
+
+###

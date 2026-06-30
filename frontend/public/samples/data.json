@@ -1,0 +1,44 @@
+[
+  {
+    "id": "01",
+    "filename": "01_stones_throw_pass.svg",
+    "label": "Stone's Throw — fully compliant",
+    "application_data": {
+      "brand_name": "Stone's Throw",
+      "class_type": "American Whiskey",
+      "alcohol_content": "40% ALC/VOL",
+      "net_contents": "750 mL",
+      "bottler_info": "Bottled by Stone's Throw Distillery, Austin TX 78701",
+      "country_of_origin": "USA",
+      "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+    }
+  },
+  {
+    "id": "02",
+    "filename": "02_missing_warning_fail.svg",
+    "label": "Missing government warning — should FAIL",
+    "application_data": {
+      "brand_name": "River Bend",
+      "class_type": "Bourbon Whiskey",
+      "alcohol_content": "43% ALC/VOL",
+      "net_contents": "1 L",
+      "bottler_info": "River Bend Spirits LLC, Nashville TN 37201",
+      "country_of_origin": "USA",
+      "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+    }
+  },
+  {
+    "id": "03",
+    "filename": "03_title_case_warning_fail.svg",
+    "label": "Title-case warning prefix — should FAIL",
+    "application_data": {
+      "brand_name": "Blue Ridge",
+      "class_type": "Tennessee Whiskey",
+      "alcohol_content": "45% ALC/VOL",
+      "net_contents": "750 mL",
+      "bottler_info": "Blue Ridge Distilling Co., Knoxville TN 37902",
+      "country_of_origin": "USA",
+      "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+    }
+  }
+]

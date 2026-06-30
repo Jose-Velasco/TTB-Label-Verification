@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <rect width="400" height="600" fill="#f5f0e8" rx="12"/>
+  <rect x="20" y="20" width="360" height="560" fill="none" stroke="#8b7355" stroke-width="3" rx="8"/>
+  <rect x="30" y="30" width="340" height="540" fill="none" stroke="#8b7355" stroke-width="1" rx="6"/>
+
+  <!-- Brand name -->
+  <text x="200" y="120" text-anchor="middle" font-family="Georgia, serif" font-size="36" font-weight="bold" fill="#2c1810">Stone's Throw</text>
+  <line x1="60" y1="135" x2="340" y2="135" stroke="#8b7355" stroke-width="1"/>
+
+  <!-- Decorative element -->
+  <circle cx="200" cy="200" r="60" fill="none" stroke="#8b7355" stroke-width="2"/>
+  <text x="200" y="195" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#8b7355">STONE'S THROW</text>
+  <text x="200" y="215" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#8b7355">DISTILLERY</text>
+
+  <!-- Class / Type -->
+  <text x="200" y="295" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#2c1810">AMERICAN WHISKEY</text>
+  <line x1="60" y1="310" x2="340" y2="310" stroke="#8b7355" stroke-width="1"/>
+
+  <!-- Alcohol content -->
+  <text x="200" y="345" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#4a3728">40% ALC/VOL (80 PROOF)</text>
+
+  <!-- Net contents -->
+  <text x="200" y="375" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#4a3728">750 mL</text>
+
+  <!-- Bottler info -->
+  <text x="200" y="410" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#4a3728">Bottled by Stone's Throw Distillery</text>
+  <text x="200" y="425" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#4a3728">Austin TX 78701 USA</text>
+
+  <!-- Government warning -->
+  <text x="200" y="460" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" font-weight="bold" fill="#1a1a1a">GOVERNMENT WARNING: (1) According to the Surgeon General,</text>
+  <text x="200" y="472" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#1a1a1a">women should not drink alcoholic beverages during pregnancy</text>
+  <text x="200" y="484" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#1a1a1a">because of the risk of birth defects. (2) Consumption of</text>
+  <text x="200" y="496" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#1a1a1a">alcoholic beverages impairs your ability to drive a car or</text>
+  <text x="200" y="508" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#1a1a1a">operate machinery, and may cause health problems.</text>
+</svg>

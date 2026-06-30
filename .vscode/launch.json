@@ -1,0 +1,64 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    //  FastAPI backend with debugger attached
+    // Sets breakpoints in Python code — useful for stepping through the adapter
+    // or verification service logic.
+    {
+      "name": "Debug: Backend",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend"
+      },
+      "envFile": "${workspaceFolder}/.env.dev",
+      "jinja": true,
+      "justMyCode": false
+    },
+
+    //  pytest with debugger
+    {
+      "name": "Debug: Backend Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests/", "-v", "-s"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env.dev",
+      "justMyCode": false
+    },
+
+    //  Next.js frontend via Chrome DevTools
+    // Attach to the browser for client-side React debugging.
+    // Start the frontend first (via task), then launch this config.
+    {
+      "name": "Debug: Frontend (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/frontend",
+      "sourceMapPathOverrides": {
+        "webpack://_N_E/*": "${workspaceFolder}/frontend/*"
+      }
+    }
+  ],
+
+  // Compound: attach debugger to backend AND open browser for frontend
+  "compounds": [
+    {
+      "name": "Debug: Full Stack",
+      "configurations": ["Debug: Backend", "Debug: Frontend (Chrome)"],
+      "stopAll": true
+    }
+  ]
+}

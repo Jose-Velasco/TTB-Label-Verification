@@ -1,0 +1,30 @@
+{
+  // Shown as "Recommended Extensions" when this folder is opened in VS Code.
+  // These are also auto-installed inside the dev container (devcontainer.json).
+  "recommendations": [
+    // Dev Containers — required to use this setup
+    "ms-vscode-remote.remote-containers",
+
+    // Python
+    "ms-python.python",
+    "ms-python.pylance",
+    "ms-python.black-formatter",
+    "charliermarsh.ruff",
+
+    // TypeScript / React / Next.js
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+
+    // Docker & YAML
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml",
+
+    // Git / productivity
+    "eamodio.gitlens",
+    "usernamehw.errorlens",
+
+    // REST testing (alternative to /docs)
+    "humao.rest-client"
+  ]
+}

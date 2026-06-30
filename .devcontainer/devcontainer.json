@@ -1,0 +1,90 @@
+{
+  "name": "TTB Label Verification",
+
+  // Reference only the devcontainer-specific compose file.
+  // Ollama runs as a sidecar; backend + frontend are launched via VS Code tasks.
+  "dockerComposeFile": "docker-compose.devcontainer.yml",
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+
+  // Stop all compose services when VS Code closes (not just the devcontainer)
+  "shutdownAction": "stopCompose",
+
+  // Ports forwarded to localhost automatically
+  "forwardPorts": [3000, 8000, 11434],
+  "portsAttributes": {
+    "3000": {
+      "label": "Next.js Frontend",
+      // Open a browser tab the first time port 3000 becomes available
+      "onAutoForward": "openBrowserOnce"
+    },
+    "8000": {
+      "label": "FastAPI Backend (Swagger at /docs)",
+      "onAutoForward": "silent"
+    },
+    "11434": {
+      "label": "Ollama",
+      "onAutoForward": "silent"
+    }
+  },
+
+  // Run after the container is created (first time or after rebuild)
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      // Extensions installed automatically inside the container
+      "extensions": [
+        // Python
+        "ms-python.python",
+        "ms-python.pylance",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        // TypeScript / React / Next.js
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        // Docker & YAML
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        // Git / productivity
+        "eamodio.gitlens",
+        "usernamehw.errorlens",
+        // REST testing (FastAPI /docs also works)
+        "humao.rest-client"
+      ],
+
+      "settings": {
+        // Point Python to the UV-managed venv created by post-create.sh
+        "python.defaultInterpreterPath": "/workspace/backend/.venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+
+        // Format on save
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[json]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+
+        // Pytest integration
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["backend/tests", "-v"],
+        "python.testing.cwd": "/workspace",
+
+        // ESLint scope
+        "eslint.workingDirectories": [{ "directory": "frontend" }]
+      }
+    }
+  }
+}
