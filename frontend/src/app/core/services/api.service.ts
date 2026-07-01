@@ -10,7 +10,7 @@ export class ApiService {
   private readonly base = environment.apiBase;
 
   login(accessKey: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/login`, { access_key: accessKey });
+    return this.http.post<void>(`${this.base}/login`, { password: accessKey });
   }
 
   logout(): Observable<void> {

@@ -4,7 +4,8 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # ── Stage 2: production build ──────────────────────────────────────────────────
 FROM builder AS prod-build

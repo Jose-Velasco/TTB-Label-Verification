@@ -11,11 +11,11 @@
   "shutdownAction": "stopCompose",
 
   // Ports forwarded to localhost automatically
-  "forwardPorts": [3000, 8000, 11434],
+  "forwardPorts": [4200, 8000, 11434],
   "portsAttributes": {
-    "3000": {
-      "label": "Next.js Frontend",
-      // Open a browser tab the first time port 3000 becomes available
+    "4200": {
+      "label": "Angular Frontend",
+      // Open a browser tab the first time port 4200 becomes available
       "onAutoForward": "openBrowserOnce"
     },
     "8000": {
@@ -40,10 +40,10 @@
         "ms-python.pylance",
         "ms-python.black-formatter",
         "charliermarsh.ruff",
-        // TypeScript / React / Next.js
+        // TypeScript / Angular
+        "angular.ng-template",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "bradlc.vscode-tailwindcss",
         // Docker & YAML
         "ms-azuretools.vscode-docker",
         "redhat.vscode-yaml",
@@ -68,9 +68,6 @@
           "editor.defaultFormatter": "ms-python.black-formatter"
         },
         "[typescript]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode"
-        },
-        "[typescriptreact]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
         "[json]": {
