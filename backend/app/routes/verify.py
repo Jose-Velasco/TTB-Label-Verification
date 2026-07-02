@@ -1,4 +1,13 @@
-from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -11,7 +20,9 @@ router = APIRouter(prefix="/api", tags=["verify"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-def _require_auth(ttb_auth: str | None = Cookie(default=None, alias=AUTH_COOKIE_NAME)) -> None:
+def _require_auth(
+    ttb_auth: str | None = Cookie(default=None, alias=AUTH_COOKIE_NAME)
+) -> None:
     if ttb_auth != settings.APP_ACCESS_KEY:
         raise HTTPException(status_code=401, detail="Authentication required")
 
@@ -23,6 +34,7 @@ def _get_service() -> VerificationService:
     during lifespan startup.
     """
     from app.main import get_verification_service
+
     return get_verification_service()
 
 
@@ -30,12 +42,15 @@ def _get_service() -> VerificationService:
 @limiter.limit("5/minute")
 async def verify_label(
     request: Request,  # required by slowapi for rate limiting
-    image: UploadFile = File(..., description="Label image (JPEG, PNG, or WebP, max 10 MB)"),
+    image: UploadFile = File(
+        ..., description="Label image (JPEG, PNG, or WebP, max 10 MB)"
+    ),
     application_data: str = Form(..., description="JSON-encoded ApplicationData"),
     _auth: None = Depends(_require_auth),
     service: VerificationService = Depends(_get_service),
 ) -> VerificationResult:
     """Verify a single label image against application data."""
+    print("hi")
     try:
         app_data = ApplicationData.model_validate_json(application_data)
     except Exception as exc:

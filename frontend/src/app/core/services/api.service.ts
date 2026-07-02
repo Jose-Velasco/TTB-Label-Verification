@@ -1,10 +1,10 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, from } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { ApplicationData, VerificationResult } from '../../models/label.models';
+import { HttpClient } from "@angular/common/http";
+import { Injectable, inject } from "@angular/core";
+import { Observable } from "rxjs";
+import { environment } from "../../../environments/environment";
+import { ApplicationData, VerificationResult } from "../../models/label.models";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiBase;
@@ -17,10 +17,13 @@ export class ApiService {
     return this.http.post<void>(`${this.base}/logout`, {});
   }
 
-  verify(file: File, applicationData: ApplicationData): Observable<VerificationResult> {
+  verify(
+    file: File,
+    applicationData: ApplicationData,
+  ): Observable<VerificationResult> {
     const fd = new FormData();
-    fd.append('file', file);
-    fd.append('application_data', JSON.stringify(applicationData));
+    fd.append("image", file);
+    fd.append("application_data", JSON.stringify(applicationData));
     return this.http.post<VerificationResult>(`${this.base}/verify`, fd);
   }
 
@@ -32,32 +35,34 @@ export class ApiService {
   ): Observable<VerificationResult> {
     return new Observable<VerificationResult>((observer) => {
       const fd = new FormData();
-      files.forEach((f) => fd.append('files', f));
-      fd.append('application_data', JSON.stringify(applicationData));
+      files.forEach((f) => fd.append("files", f));
+      fd.append("application_data", JSON.stringify(applicationData));
 
       const controller = new AbortController();
 
       fetch(`${this.base}/verify-batch`, {
-        method: 'POST',
+        method: "POST",
         body: fd,
-        credentials: 'include',
+        credentials: "include",
         signal: controller.signal,
       })
         .then(async (response) => {
           if (!response.ok) {
             const text = await response.text().catch(() => response.statusText);
-            observer.error(new Error(`Batch request failed: ${response.status} ${text}`));
+            observer.error(
+              new Error(`Batch request failed: ${response.status} ${text}`),
+            );
             return;
           }
 
           if (!response.body) {
-            observer.error(new Error('Response body is null'));
+            observer.error(new Error("Response body is null"));
             return;
           }
 
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
-          let buffer = '';
+          let buffer = "";
 
           try {
             while (true) {
@@ -65,8 +70,8 @@ export class ApiService {
               if (done) break;
 
               buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              buffer = lines.pop() ?? '';
+              const lines = buffer.split("\n");
+              buffer = lines.pop() ?? "";
 
               for (const line of lines) {
                 const trimmed = line.trim();
@@ -91,11 +96,11 @@ export class ApiService {
 
             observer.complete();
           } catch (err) {
-            if ((err as Error).name !== 'AbortError') observer.error(err);
+            if ((err as Error).name !== "AbortError") observer.error(err);
           }
         })
         .catch((err) => {
-          if (err.name !== 'AbortError') observer.error(err);
+          if (err.name !== "AbortError") observer.error(err);
         });
 
       return () => controller.abort();

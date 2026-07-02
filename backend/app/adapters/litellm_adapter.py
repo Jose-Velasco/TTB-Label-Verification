@@ -25,9 +25,21 @@ class LiteLLMVisionAdapter:
         # stay within the configured RPM ceiling at the application level.
         self.limiter = AsyncLimiter(settings.RATE_LIMIT_RPM, 60)
 
+    # def _resolve_api_base(self) -> str | None:
+    #     """Return the custom API base only for Ollama-routed models."""
+    #     if "ollama" in self.settings.VISION_MODEL.lower():
+    #         return self.settings.OLLAMA_API_BASE
+    #     return None
+
     def _resolve_api_base(self) -> str | None:
         """Return the custom API base only for Ollama-routed models."""
         if "ollama" in self.settings.VISION_MODEL.lower():
+            return self.settings.OLLAMA_API_BASE
+        # Also use Ollama base when OLLAMA_API_BASE is set and model uses openai/ prefix
+        if (
+            self.settings.VISION_MODEL.startswith("openai/")
+            and self.settings.OLLAMA_API_BASE
+        ):
             return self.settings.OLLAMA_API_BASE
         return None
 
@@ -36,10 +48,24 @@ class LiteLLMVisionAdapter:
         model = self.settings.VISION_MODEL.lower()
         if "gemini" in model and self.settings.GEMINI_API_KEY:
             return self.settings.GEMINI_API_KEY
+        # Use Ollama dummy key when routing through local Ollama
+        if "ollama" in model or (
+            model.startswith("openai/") and bool(self.settings.OLLAMA_API_BASE)
+        ):
+            return "ollama"
         if self.settings.OPENAI_API_KEY:
             return self.settings.OPENAI_API_KEY
-        # Ollama doesn't require a real key
         return "ollama"
+
+    # def _resolve_api_key(self) -> str:
+    #     """Pick the right API key based on the model string."""
+    #     model = self.settings.VISION_MODEL.lower()
+    #     if "gemini" in model and self.settings.GEMINI_API_KEY:
+    #         return self.settings.GEMINI_API_KEY
+    #     if self.settings.OPENAI_API_KEY:
+    #         return self.settings.OPENAI_API_KEY
+    #     # Ollama doesn't require a real key
+    #     return "ollama"
 
     @retry(
         retry=retry_if_exception_type(
@@ -59,6 +85,7 @@ class LiteLLMVisionAdapter:
         Tenacity retries on rate-limit / transient errors with random exponential
         backoff — prevents thundering-herd on the provider during batch runs.
         """
+        print(self.settings)
         async with self.limiter:
             response = await litellm.acompletion(
                 model=self.settings.VISION_MODEL,
