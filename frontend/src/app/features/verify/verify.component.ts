@@ -1,17 +1,18 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterLink, RouterLinkActive, Router } from '@angular/router';
-import { ApiService } from '../../core/services/api.service';
-import { AuthService } from '../../core/services/auth.service';
-import { ApplicationData, VerificationResult } from '../../models/label.models';
-import { ApplicationFormComponent } from '../../shared/components/application-form/application-form.component';
-import { LabelUploaderComponent } from '../../shared/components/label-uploader/label-uploader.component';
-import { CameraCaptureComponent } from '../../shared/components/camera-capture/camera-capture.component';
-import { VerificationResultComponent } from '../../shared/components/verification-result/verification-result.component';
+import { CommonModule } from "@angular/common";
+import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
+import { Router, RouterLink, RouterLinkActive } from "@angular/router";
+import { ApiService } from "../../core/services/api.service";
+import { AuthService } from "../../core/services/auth.service";
+import { ApplicationData, VerificationResult } from "../../models/label.models";
+import { ApplicationFormComponent } from "../../shared/components/application-form/application-form.component";
+import { CameraCaptureComponent } from "../../shared/components/camera-capture/camera-capture.component";
+import { LabelUploaderComponent } from "../../shared/components/label-uploader/label-uploader.component";
+import { VerificationResultComponent } from "../../shared/components/verification-result/verification-result.component";
 
 @Component({
-  selector: 'app-verify',
+  selector: "app-verify",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [
     CommonModule,
     RouterLink,
@@ -26,7 +27,11 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
       <nav class="nav">
         <a routerLink="/verify" routerLinkActive="active">Single Verify</a>
         <a routerLink="/batch" routerLinkActive="active">Batch</a>
-        <button class="btn btn-secondary" style="margin-left:auto;padding:0.375rem 0.875rem;font-size:0.8125rem" (click)="logout()">
+        <button
+          class="btn btn-secondary"
+          style="margin-left:auto;padding:0.375rem 0.875rem;font-size:0.8125rem"
+          (click)="logout()"
+        >
           Sign Out
         </button>
       </nav>
@@ -34,7 +39,10 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
       <div class="page-header">
         <div>
           <h1>Label Verification</h1>
-          <p>Upload a label image and enter application data to verify compliance.</p>
+          <p>
+            Upload a label image and enter application data to verify
+            compliance.
+          </p>
         </div>
       </div>
 
@@ -42,14 +50,22 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
         <div>
           <app-application-form (saved)="onAppDataSaved($event)" />
 
-          <div *ngIf="appData" class="card" style="background:var(--bg);margin-top:0">
-            <p style="font-size:0.8125rem;color:var(--pass);font-weight:600">✓ Application data saved</p>
+          <div
+            *ngIf="appData"
+            class="card"
+            style="background:var(--bg);margin-top:0"
+          >
+            <p style="font-size:0.8125rem;color:var(--pass);font-weight:600">
+              ✓ Application data saved
+            </p>
           </div>
         </div>
 
         <div>
           <div class="card">
-            <h2 style="font-size:1.125rem;font-weight:700;margin-bottom:1rem">Label Image</h2>
+            <h2 style="font-size:1.125rem;font-weight:700;margin-bottom:1rem">
+              Label Image
+            </h2>
 
             <div style="display:flex;gap:0.75rem;margin-bottom:1rem">
               <button
@@ -57,13 +73,17 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
                 [class.btn-primary]="inputMode === 'upload'"
                 [class.btn-secondary]="inputMode !== 'upload'"
                 (click)="inputMode = 'upload'"
-              >Upload</button>
+              >
+                Upload
+              </button>
               <button
                 class="btn"
                 [class.btn-primary]="inputMode === 'camera'"
                 [class.btn-secondary]="inputMode !== 'camera'"
                 (click)="inputMode = 'camera'"
-              >Camera</button>
+              >
+                Camera
+              </button>
             </div>
 
             <app-label-uploader
@@ -86,18 +106,26 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
               (click)="verify()"
             >
               <span *ngIf="loading" class="spinner"></span>
-              {{ loading ? 'Verifying…' : 'Verify Label' }}
+              {{ loading ? "Verifying…" : "Verify Label" }}
             </button>
 
-            <p *ngIf="!appData || !selectedFile" style="font-size:0.8125rem;color:var(--text-muted);margin-top:0.5rem;text-align:center">
-              {{ !appData ? 'Save application data first.' : 'Select a label image.' }}
+            <p
+              *ngIf="!appData || !selectedFile"
+              style="font-size:0.8125rem;color:var(--text-muted);margin-top:0.5rem;text-align:center"
+            >
+              {{
+                !appData
+                  ? "Save application data first."
+                  : "Select a label image."
+              }}
             </p>
           </div>
         </div>
       </div>
 
+      <pre *ngIf="result">{{ result | json }}</pre>
       <div *ngIf="result" style="margin-top:1.5rem">
-        <app-verification-result [result]="result" />
+        <app-verification-result [result]="result"></app-verification-result>
       </div>
     </div>
   `,
@@ -106,8 +134,9 @@ export class VerifyComponent {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  // private readonly cdr = inject(ChangeDetectorRef);
 
-  inputMode: 'upload' | 'camera' = 'upload';
+  inputMode: "upload" | "camera" = "upload";
   appData: ApplicationData | null = null;
   selectedFile: File | null = null;
   loading = false;
@@ -135,17 +164,21 @@ export class VerifyComponent {
       next: (r) => {
         this.result = r;
         this.loading = false;
+        // this.cdr.detectChanges();
       },
       error: (err) => {
         this.loading = false;
         if (err?.status === 401 || err?.status === 403) {
           this.auth.setLoggedIn(false);
-          this.router.navigate(['/login']);
+          this.router.navigate(["/login"]);
         } else if (err?.status === 429) {
-          this.error = 'Rate limit reached. Please wait a moment and try again.';
+          this.error =
+            "Rate limit reached. Please wait a moment and try again.";
         } else {
-          this.error = err?.error?.detail ?? 'Verification failed. Please try again.';
+          this.error =
+            err?.error?.detail ?? "Verification failed. Please try again.";
         }
+        // this.cdr.detectChanges();
       },
     });
   }
@@ -154,11 +187,11 @@ export class VerifyComponent {
     this.api.logout().subscribe({
       complete: () => {
         this.auth.setLoggedIn(false);
-        this.router.navigate(['/login']);
+        this.router.navigate(["/login"]);
       },
       error: () => {
         this.auth.setLoggedIn(false);
-        this.router.navigate(['/login']);
+        this.router.navigate(["/login"]);
       },
     });
   }

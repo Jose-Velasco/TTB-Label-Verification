@@ -31,6 +31,8 @@
   // Run after the container is created (first time or after rebuild)
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+
   "customizations": {
     "vscode": {
       // Extensions installed automatically inside the container
