@@ -1,5 +1,5 @@
 import { CommonModule } from "@angular/common";
-import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
+import { Component, inject, signal } from "@angular/core";
 import { Router, RouterLink, RouterLinkActive } from "@angular/router";
 import { ApiService } from "../../core/services/api.service";
 import { AuthService } from "../../core/services/auth.service";
@@ -12,7 +12,6 @@ import { VerificationResultComponent } from "../../shared/components/verificatio
 @Component({
   selector: "app-verify",
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [
     CommonModule,
     RouterLink,
@@ -51,7 +50,7 @@ import { VerificationResultComponent } from "../../shared/components/verificatio
           <app-application-form (saved)="onAppDataSaved($event)" />
 
           <div
-            *ngIf="appData"
+            *ngIf="appData()"
             class="card"
             style="background:var(--bg);margin-top:0"
           >
@@ -70,51 +69,51 @@ import { VerificationResultComponent } from "../../shared/components/verificatio
             <div style="display:flex;gap:0.75rem;margin-bottom:1rem">
               <button
                 class="btn"
-                [class.btn-primary]="inputMode === 'upload'"
-                [class.btn-secondary]="inputMode !== 'upload'"
-                (click)="inputMode = 'upload'"
+                [class.btn-primary]="inputMode() === 'upload'"
+                [class.btn-secondary]="inputMode() !== 'upload'"
+                (click)="inputMode.set('upload')"
               >
                 Upload
               </button>
               <button
                 class="btn"
-                [class.btn-primary]="inputMode === 'camera'"
-                [class.btn-secondary]="inputMode !== 'camera'"
-                (click)="inputMode = 'camera'"
+                [class.btn-primary]="inputMode() === 'camera'"
+                [class.btn-secondary]="inputMode() !== 'camera'"
+                (click)="inputMode.set('camera')"
               >
                 Camera
               </button>
             </div>
 
             <app-label-uploader
-              *ngIf="inputMode === 'upload'"
+              *ngIf="inputMode() === 'upload'"
               (fileSelected)="onFileSelected($event)"
             />
             <app-camera-capture
-              *ngIf="inputMode === 'camera'"
+              *ngIf="inputMode() === 'camera'"
               (fileSelected)="onFileSelected($event)"
             />
           </div>
 
           <div style="margin-top:1rem">
-            <div *ngIf="error" class="alert-error">{{ error }}</div>
+            <div *ngIf="error()" class="alert-error">{{ error() }}</div>
 
             <button
               class="btn btn-primary"
               style="width:100%"
-              [disabled]="loading || !selectedFile || !appData"
+              [disabled]="loading() || !selectedFile() || !appData()"
               (click)="verify()"
             >
-              <span *ngIf="loading" class="spinner"></span>
-              {{ loading ? "Verifying…" : "Verify Label" }}
+              <span *ngIf="loading()" class="spinner"></span>
+              {{ loading() ? "Verifying…" : "Verify Label" }}
             </button>
 
             <p
-              *ngIf="!appData || !selectedFile"
+              *ngIf="!appData() || !selectedFile()"
               style="font-size:0.8125rem;color:var(--text-muted);margin-top:0.5rem;text-align:center"
             >
               {{
-                !appData
+                !appData()
                   ? "Save application data first."
                   : "Select a label image."
               }}
@@ -123,9 +122,8 @@ import { VerificationResultComponent } from "../../shared/components/verificatio
         </div>
       </div>
 
-      <pre *ngIf="result">{{ result | json }}</pre>
-      <div *ngIf="result" style="margin-top:1.5rem">
-        <app-verification-result [result]="result"></app-verification-result>
+      <div *ngIf="result()" style="margin-top:1.5rem">
+        <app-verification-result [result]="result()"></app-verification-result>
       </div>
     </div>
   `,
@@ -134,51 +132,52 @@ export class VerifyComponent {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  // private readonly cdr = inject(ChangeDetectorRef);
 
-  inputMode: "upload" | "camera" = "upload";
-  appData: ApplicationData | null = null;
-  selectedFile: File | null = null;
-  loading = false;
-  error: string | null = null;
-  result: VerificationResult | null = null;
+  inputMode = signal<"upload" | "camera">("upload");
+  appData = signal<ApplicationData | null>(null);
+  selectedFile = signal<File | null>(null);
+  loading = signal(false);
+  error = signal<string | null>(null);
+  result = signal<VerificationResult | null>(null);
 
   onAppDataSaved(data: ApplicationData): void {
-    this.appData = data;
+    this.appData.set(data);
   }
 
   onFileSelected(file: File): void {
-    this.selectedFile = file;
-    this.result = null;
-    this.error = null;
+    this.selectedFile.set(file);
+    this.result.set(null);
+    this.error.set(null);
   }
 
   verify(): void {
-    if (!this.selectedFile || !this.appData) return;
+    const selectedFile = this.selectedFile();
+    const appData = this.appData();
+    if (!selectedFile || !appData) return;
 
-    this.loading = true;
-    this.error = null;
-    this.result = null;
+    this.loading.set(true);
+    this.error.set(null);
+    this.result.set(null);
 
-    this.api.verify(this.selectedFile, this.appData).subscribe({
+    this.api.verify(selectedFile, appData).subscribe({
       next: (r) => {
-        this.result = r;
-        this.loading = false;
-        // this.cdr.detectChanges();
+        this.result.set(r);
+        this.loading.set(false);
       },
       error: (err) => {
-        this.loading = false;
+        this.loading.set(false);
         if (err?.status === 401 || err?.status === 403) {
           this.auth.setLoggedIn(false);
           this.router.navigate(["/login"]);
         } else if (err?.status === 429) {
-          this.error =
-            "Rate limit reached. Please wait a moment and try again.";
+          this.error.set(
+            "Rate limit reached. Please wait a moment and try again.",
+          );
         } else {
-          this.error =
-            err?.error?.detail ?? "Verification failed. Please try again.";
+          this.error.set(
+            err?.error?.detail ?? "Verification failed. Please try again.",
+          );
         }
-        // this.cdr.detectChanges();
       },
     });
   }

@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, Input } from '@angular/core';
+import { Component, Output, EventEmitter, Input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -11,7 +11,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
   template: `
     <div
       class="drop-zone"
-      [class.dragging]="dragging"
+      [class.dragging]="dragging()"
       (dragover)="onDragOver($event)"
       (dragleave)="onDragLeave()"
       (drop)="onDrop($event)"
@@ -32,14 +32,14 @@ const MAX_BYTES = 10 * 1024 * 1024;
       />
     </div>
 
-    <div *ngFor="let e of errors" class="alert-error" style="margin-top:0.5rem">{{ e }}</div>
+    <div *ngFor="let e of errors()" class="alert-error" style="margin-top:0.5rem">{{ e }}</div>
 
-    <div *ngIf="files.length" style="margin-top:0.75rem">
+    <div *ngIf="files().length" style="margin-top:0.75rem">
       <p style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">
-        {{ files.length }} file{{ files.length === 1 ? '' : 's' }} selected
+        {{ files().length }} file{{ files().length === 1 ? '' : 's' }} selected
       </p>
       <ul style="list-style:none;display:grid;gap:0.375rem">
-        <li *ngFor="let f of files; let i = index"
+        <li *ngFor="let f of files(); let i = index"
             style="font-size:0.8125rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:0.375rem 0.625rem;border-radius:0.375rem">
           <span>{{ f.name }}</span>
           <button
@@ -56,22 +56,22 @@ export class BatchUploaderComponent {
   @Input() disabled = false;
   @Output() filesSelected = new EventEmitter<File[]>();
 
-  dragging = false;
-  files: File[] = [];
-  errors: string[] = [];
+  dragging = signal(false);
+  files = signal<File[]>([]);
+  errors = signal<string[]>([]);
 
   onDragOver(e: DragEvent): void {
     e.preventDefault();
-    this.dragging = true;
+    this.dragging.set(true);
   }
 
   onDragLeave(): void {
-    this.dragging = false;
+    this.dragging.set(false);
   }
 
   onDrop(e: DragEvent): void {
     e.preventDefault();
-    this.dragging = false;
+    this.dragging.set(false);
     const incoming = Array.from(e.dataTransfer?.files ?? []);
     this.processFiles(incoming);
   }
@@ -82,27 +82,30 @@ export class BatchUploaderComponent {
   }
 
   remove(index: number): void {
-    this.files.splice(index, 1);
-    this.filesSelected.emit([...this.files]);
+    const next = this.files().slice();
+    next.splice(index, 1);
+    this.files.set(next);
+    this.filesSelected.emit([...next]);
   }
 
   private processFiles(incoming: File[]): void {
-    this.errors = [];
+    const errors: string[] = [];
     const valid: File[] = [];
 
     for (const f of incoming) {
       if (!ALLOWED_TYPES.has(f.type)) {
-        this.errors.push(`${f.name}: unsupported type ${f.type}`);
+        errors.push(`${f.name}: unsupported type ${f.type}`);
         continue;
       }
       if (f.size > MAX_BYTES) {
-        this.errors.push(`${f.name}: too large (${(f.size / 1024 / 1024).toFixed(1)} MB)`);
+        errors.push(`${f.name}: too large (${(f.size / 1024 / 1024).toFixed(1)} MB)`);
         continue;
       }
       valid.push(f);
     }
 
-    this.files = [...this.files, ...valid];
-    this.filesSelected.emit([...this.files]);
+    this.errors.set(errors);
+    this.files.update((current) => [...current, ...valid]);
+    this.filesSelected.emit([...this.files()]);
   }
 }

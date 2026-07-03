@@ -138,6 +138,23 @@ uv sync --dev
 uv run pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
+This runs the fast, fully-mocked unit suite only — no network calls, deterministic,
+safe for CI.
+
+**Golden-sample eval suite** (opt-in, not run by default): exercises the real
+`LiteLLMVisionAdapter` against the sample labels in `frontend/public/samples/`,
+including deliberately corrupted application data and degraded (blurred, rotated,
+low-contrast, compressed, glare) images. These calls hit a real vision model, so
+they're slow and non-deterministic — they are excluded from the default `pytest
+tests/` run via the `eval` marker and must be requested explicitly:
+```bash
+uv run pytest tests/ -v -m eval
+```
+Requires either Ollama running locally with the model in `VISION_MODEL` already
+pulled, or a valid `GEMINI_API_KEY` (real API usage/cost applies on Gemini). CI
+should only run the default fast suite; treat the eval suite as a manual
+pre-submission check.
+
 **Frontend** (requires Node 20):
 ```bash
 cd frontend

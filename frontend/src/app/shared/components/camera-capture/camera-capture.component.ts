@@ -5,6 +5,7 @@ import {
   ViewChild,
   ElementRef,
   OnDestroy,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
@@ -16,13 +17,13 @@ import { CommonModule } from '@angular/common';
     <div class="card" style="margin-bottom:0">
       <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:0.75rem">Camera Capture</h3>
 
-      <div *ngIf="!streaming && !captured">
+      <div *ngIf="!streaming() && !captured()">
         <button class="btn btn-secondary" (click)="startCamera()">Open Camera</button>
       </div>
 
-      <div *ngIf="error" class="alert-error" style="margin-top:0.5rem">{{ error }}</div>
+      <div *ngIf="error()" class="alert-error" style="margin-top:0.5rem">{{ error() }}</div>
 
-      <div *ngIf="streaming" style="margin-top:0.75rem">
+      <div *ngIf="streaming()" style="margin-top:0.75rem">
         <video #videoEl autoplay playsinline style="width:100%;border-radius:0.5rem;border:1px solid var(--border)"></video>
         <div style="display:flex;gap:0.75rem;margin-top:0.75rem">
           <button class="btn btn-primary" (click)="capture()">Capture</button>
@@ -30,9 +31,9 @@ import { CommonModule } from '@angular/common';
         </div>
       </div>
 
-      <div *ngIf="captured" style="margin-top:0.75rem">
+      <div *ngIf="captured()" style="margin-top:0.75rem">
         <canvas #canvasEl style="display:none"></canvas>
-        <img [src]="capturedDataUrl" alt="Captured" style="width:100%;border-radius:0.5rem;border:1px solid var(--border)" />
+        <img [src]="capturedDataUrl()" alt="Captured" style="width:100%;border-radius:0.5rem;border:1px solid var(--border)" />
         <div style="display:flex;gap:0.75rem;margin-top:0.75rem">
           <button class="btn btn-primary" (click)="useCapture()">Use This Photo</button>
           <button class="btn btn-secondary" (click)="retake()">Retake</button>
@@ -46,21 +47,21 @@ export class CameraCaptureComponent implements OnDestroy {
   @ViewChild('videoEl') videoEl!: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl') canvasEl!: ElementRef<HTMLCanvasElement>;
 
-  streaming = false;
-  captured = false;
-  capturedDataUrl: string | null = null;
-  error: string | null = null;
+  streaming = signal(false);
+  captured = signal(false);
+  capturedDataUrl = signal<string | null>(null);
+  error = signal<string | null>(null);
 
   private stream: MediaStream | null = null;
   private capturedBlob: Blob | null = null;
 
   async startCamera(): Promise<void> {
-    this.error = null;
+    this.error.set(null);
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
       });
-      this.streaming = true;
+      this.streaming.set(true);
       // Wait a tick for the video element to render
       setTimeout(() => {
         if (this.videoEl?.nativeElement && this.stream) {
@@ -68,7 +69,7 @@ export class CameraCaptureComponent implements OnDestroy {
         }
       }, 0);
     } catch {
-      this.error = 'Camera access denied or not available.';
+      this.error.set('Camera access denied or not available.');
     }
   }
 
@@ -85,9 +86,9 @@ export class CameraCaptureComponent implements OnDestroy {
       (blob) => {
         if (!blob) return;
         this.capturedBlob = blob;
-        this.capturedDataUrl = canvas.toDataURL('image/jpeg');
-        this.streaming = false;
-        this.captured = true;
+        this.capturedDataUrl.set(canvas.toDataURL('image/jpeg'));
+        this.streaming.set(false);
+        this.captured.set(true);
         this.stopStream();
       },
       'image/jpeg',
@@ -104,14 +105,14 @@ export class CameraCaptureComponent implements OnDestroy {
   }
 
   retake(): void {
-    this.captured = false;
-    this.capturedDataUrl = null;
+    this.captured.set(false);
+    this.capturedDataUrl.set(null);
     this.capturedBlob = null;
     this.startCamera();
   }
 
   stopCamera(): void {
-    this.streaming = false;
+    this.streaming.set(false);
     this.stopStream();
   }
 

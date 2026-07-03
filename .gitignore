@@ -19,6 +19,9 @@ htmlcov/
 .coverage
 coverage.xml
 
+# Generated preview images for manual review — not meant to be committed
+backend/scripts/output/
+
 # Node / Next.js
 node_modules/
 .next/

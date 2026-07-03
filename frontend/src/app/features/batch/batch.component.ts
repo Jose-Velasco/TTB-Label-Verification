@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -47,36 +47,36 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
           <div class="card">
             <h2 style="font-size:1.125rem;font-weight:700;margin-bottom:1rem">Label Images</h2>
             <app-batch-uploader
-              [disabled]="loading"
+              [disabled]="loading()"
               (filesSelected)="onFilesSelected($event)"
             />
           </div>
 
           <div style="margin-top:1rem">
-            <div *ngIf="error" class="alert-error">{{ error }}</div>
+            <div *ngIf="error()" class="alert-error">{{ error() }}</div>
 
             <button
               class="btn btn-primary"
               style="width:100%"
-              [disabled]="loading || !files.length || !appData"
+              [disabled]="loading() || !files().length || !appData()"
               (click)="runBatch()"
             >
-              <span *ngIf="loading" class="spinner"></span>
-              {{ loading ? 'Processing…' : 'Start Batch (' + files.length + ' files)' }}
+              <span *ngIf="loading()" class="spinner"></span>
+              {{ loading() ? 'Processing…' : 'Start Batch (' + files().length + ' files)' }}
             </button>
 
-            <p *ngIf="!appData || !files.length" style="font-size:0.8125rem;color:var(--text-muted);margin-top:0.5rem;text-align:center">
-              {{ !appData ? 'Save application data first.' : 'Select at least one label image.' }}
+            <p *ngIf="!appData() || !files().length" style="font-size:0.8125rem;color:var(--text-muted);margin-top:0.5rem;text-align:center">
+              {{ !appData() ? 'Save application data first.' : 'Select at least one label image.' }}
             </p>
           </div>
         </div>
       </div>
 
-      <div style="margin-top:1.5rem" *ngIf="progressItems.length">
-        <app-batch-progress [items]="progressItems" />
+      <div style="margin-top:1.5rem" *ngIf="progressItems().length">
+        <app-batch-progress [items]="progressItems()" />
       </div>
 
-      <div style="margin-top:1rem" *ngFor="let item of progressItems">
+      <div style="margin-top:1rem" *ngFor="let item of progressItems()">
         <app-verification-result *ngIf="item.result" [result]="item.result" />
         <div *ngIf="item.error" class="alert-error">{{ item.filename }}: {{ item.error }}</div>
       </div>
@@ -88,62 +88,69 @@ export class BatchComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
-  appData: ApplicationData | null = null;
-  files: File[] = [];
-  loading = false;
-  error: string | null = null;
-  progressItems: BatchProgressItem[] = [];
+  appData = signal<ApplicationData | null>(null);
+  files = signal<File[]>([]);
+  loading = signal(false);
+  error = signal<string | null>(null);
+  progressItems = signal<BatchProgressItem[]>([]);
 
   onAppDataSaved(data: ApplicationData): void {
-    this.appData = data;
+    this.appData.set(data);
   }
 
   onFilesSelected(files: File[]): void {
-    this.files = files;
+    this.files.set(files);
   }
 
   runBatch(): void {
-    if (!this.files.length || !this.appData) return;
+    const files = this.files();
+    const appData = this.appData();
+    if (!files.length || !appData) return;
 
-    this.loading = true;
-    this.error = null;
+    this.loading.set(true);
+    this.error.set(null);
 
-    this.progressItems = this.files.map((f) => ({
-      filename: f.name,
-      status: 'pending',
-    }));
+    this.progressItems.set(
+      files.map((f) => ({
+        filename: f.name,
+        status: 'pending' as const,
+      })),
+    );
 
-    this.api.verifyBatch(this.files, this.appData).subscribe({
+    this.api.verifyBatch(files, appData).subscribe({
       next: (result) => {
-        const idx = this.progressItems.findIndex(
-          (item) => item.filename === result.filename,
-        );
-        const target = idx >= 0 ? idx : this.progressItems.findIndex((i) => i.status === 'pending');
-        if (target >= 0) {
-          this.progressItems[target] = {
-            filename: result.filename ?? this.progressItems[target].filename,
+        this.progressItems.update((items) => {
+          const idx = items.findIndex((item) => item.filename === result.filename);
+          const target = idx >= 0 ? idx : items.findIndex((i) => i.status === 'pending');
+          if (target < 0) return items;
+          const next = items.slice();
+          next[target] = {
+            filename: result.filename ?? items[target].filename,
             status: 'done',
             result,
           };
-        }
+          return next;
+        });
       },
       error: (err) => {
-        this.loading = false;
+        this.loading.set(false);
         if (err?.status === 401 || err?.status === 403) {
           this.auth.setLoggedIn(false);
           this.router.navigate(['/login']);
         } else if (err?.status === 429) {
-          this.error = 'Rate limit reached. Please wait a moment and try again.';
+          this.error.set('Rate limit reached. Please wait a moment and try again.');
         } else {
-          this.error = err?.message ?? 'Batch processing failed.';
+          this.error.set(err?.message ?? 'Batch processing failed.');
         }
         // Mark remaining pending items as error
-        this.progressItems = this.progressItems.map((item) =>
-          item.status === 'pending' ? { ...item, status: 'error', error: 'Aborted' } : item,
+        this.progressItems.update((items) =>
+          items.map((item) =>
+            item.status === 'pending' ? { ...item, status: 'error', error: 'Aborted' } : item,
+          ),
         );
       },
       complete: () => {
-        this.loading = false;
+        this.loading.set(false);
       },
     });
   }
