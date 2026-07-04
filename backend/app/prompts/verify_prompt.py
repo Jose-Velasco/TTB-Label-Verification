@@ -64,7 +64,18 @@ There are two groups of fields, and they are handled DIFFERENTLY:
      no quality concern.
 
 2. EXTRACT the exact text visible on the label — but only report values you
-   actually read with confidence, per instruction 1.
+   actually read with confidence, per instruction 1. Determine extracted_value
+   from the IMAGE ONLY, before you consult or restate the expected value for
+   that field. Extraction and comparison are separate steps done in that order.
+
+2b. NEVER ANCHOR ON THE EXPECTED VALUE. extracted_value must never be a copy
+   of the expected value unless the label's printed text is genuinely,
+   verbatim identical to it. If you notice yourself about to write the
+   expected value as extracted_value, stop: re-examine the image region for
+   that field and either transcribe the real printed characters, or — if you
+   cannot actually read them — use null with status "unreadable"/"warning".
+   Silently substituting the expected value because the reading is unclear is
+   a critical error, not a safe default.
 
 3. COMPARE the extracted text against the expected value for the SAME field
    before choosing a status. A legible reading is not the same as a match.
@@ -88,6 +99,38 @@ There are two groups of fields, and they are handled DIFFERENTLY:
    - Expected "1 L", extracted "750 mL" -> different quantities -> "fail".
    - Expected "Bourbon Whiskey", extracted "Stone's Throw" -> unrelated values
      (a brand name where a class/type was expected) -> "fail".
+
+4b. SELF-CONSISTENCY CHECK. Before finalizing each field, verify that
+   extracted_value, status, and note/reasoning do not contradict each other
+   IN EITHER DIRECTION:
+   - If note or reasoning says you could not determine, read, or make out the
+     value -> status MUST be "unreadable" or "warning", NEVER "pass", and
+     extracted_value MUST be null, NEVER the expected value or any other text.
+   - If status is "unreadable" -> extracted_value MUST be null, AND your
+     reasoning must not state or imply that you actually read specific text
+     off the label. If your reasoning describes what the label says (e.g.
+     "the label reads 40% ALC/VOL" or "the label reads 750 mL"), you have
+     contradicted "unreadable" — the correct status is determined by comparing
+     that reading to the expected value (instruction 3), NOT "unreadable".
+     "Unreadable" means you could not read ANY meaningful text for that field,
+     full stop — it is never a valid status alongside reasoning that quotes or
+     paraphrases what the label says.
+   - A separate, common trap: do NOT use "unreadable" (or a null
+     extracted_value) to mean "I read the label fine, but the expected value
+     looks like a placeholder, typo, or unlikely value, so I can't judge a
+     match." That is NOT what "unreadable" means. If you read real text off the
+     label, extracted_value MUST contain that real text and status MUST come
+     from the comparison logic in instructions 3-4, even if the expected value
+     looks implausible, garbled, or clearly wrong. A clearly-read label field
+     against an implausible or placeholder expected value is a "fail" (the
+     information does not match), NOT "unreadable" and NOT "pass". The quality
+     of the expected value never changes whether the LABEL was readable.
+   - If status is "pass" -> extracted_value MUST be a real, non-null reading
+     you actually took from the image, not null and not an unexplained copy
+     of the expected value.
+   A field whose reasoning and status/extracted_value disagree in either
+   direction is a critical error — reread the image or correct the field
+   before responding, don't leave the contradiction in your output.
 
 5. ABSENT FIELD. If a field is completely absent from the label, status is
    "fail".
@@ -116,17 +159,23 @@ There are two groups of fields, and they are handled DIFFERENTLY:
    - Do not invent or assume standard wording you cannot actually see.
 
 Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation
-outside the JSON. Use this exact schema. Fill in "reasoning" for every field
-BEFORE deciding its status. For Group A fields, restate your reading confidence,
-the expected and extracted values, and whether they are the same information
-formatted differently or actually different. For government_warning, state your
-confidence in reading the characters.
+outside the JSON. Use this exact schema, and fill each field's keys IN THE
+ORDER SHOWN — "extracted_value" MUST be written first, decided from the image
+alone, before "reasoning" ever mentions the expected value (per instructions 2
+and 2b). Do not go back and change extracted_value after writing the
+comparison — if the comparison reveals you actually guessed, fix that by
+setting extracted_value to null and status to "unreadable"/"warning", not by
+leaving a copied expected value in place. Keep "reasoning" to ONE short
+clause (under ~12 words) stating the verdict, not a restatement of both
+values — e.g. "matches, formatting only", "different quantity", "text
+blurred, can't confirm". For government_warning, a short confidence note is
+enough (e.g. "clearly legible").
 
 {{
   "brand_name": {{
-    "reasoning": "<reading confidence; expected: ...; extracted: ...; same info differently formatted, or actually different, and why>",
+    "extracted_value": "<text read from the label image ONLY, decided before you look at the expected value; null if unreadable>",
+    "reasoning": "<one short clause: verdict only, e.g. 'matches, formatting only' or 'different brand'>",
     "status": "pass" | "fail" | "warning" | "unreadable",
-    "extracted_value": "<text from label, or null if unreadable>",
     "note": "<optional explanation for non-pass status>"
   }},
   "class_type": {{ ... }},
@@ -135,138 +184,13 @@ confidence in reading the characters.
   "bottler_info": {{ ... }},
   "country_of_origin": {{ ... }},
   "government_warning": {{
-    "reasoning": "<confidence in reading the characters of the full warning text>",
+    "extracted_value": "<full government warning text exactly as printed, decided before comparing; null if unreadable>",
+    "reasoning": "<one short clause: reading confidence only, e.g. 'clearly legible'>",
     "status": "pass" | "fail" | "warning" | "unreadable",
-    "extracted_value": "<full government warning text exactly as printed, or null if unreadable>",
     "note": "<optional explanation for non-pass status>"
   }}
 }}
 """
-
-# _PROMPT_TEMPLATE = """\
-# You are a TTB (Alcohol and Tobacco Tax and Trade Bureau) label compliance specialist.
-# Examine the alcohol label image and extract the following fields, then compare each
-# against the expected application data provided.
-
-# EXPECTED APPLICATION DATA:
-# - Brand Name: {brand_name}
-# - Class/Type: {class_type}
-# - Alcohol Content: {alcohol_content}
-# - Net Contents: {net_contents}
-# - Bottler Info: {bottler_info}
-# - Country of Origin: {country_of_origin}
-# - Government Warning: {government_warning}
-
-# INSTRUCTIONS:
-
-# 1. FIRST, before extracting any field, assess the overall image quality. Ask
-#    yourself: "Could I confidently re-type every character of this label from
-#    what I can see, or am I filling in gaps with my best guess based on what a
-#    label like this usually says?" If you are inferring likely text rather
-#    than actually reading it, that field is NOT a "pass" candidate — see
-#    instruction 5 below. This applies regardless of how legible the extracted
-#    text LOOKS in your response; the question is whether you were confident
-#    reading it off the actual image pixels, not whether your answer sounds
-#    plausible.
-
-#    Worked examples of this quality check:
-#    - The image is blurry enough that letter shapes are ambiguous (e.g. you
-#      cannot tell if a character is "S" or "5") -> mark that field "unreadable"
-#      or "warning", even if you have a plausible guess.
-#    - Glare or a bright reflection obscures part of the text -> mark the
-#      affected field "unreadable" or "warning" for the obscured portion, even
-#      if surrounding text is clear.
-#    - The image is rotated or skewed such that some text is cut off or
-#      distorted at the edges -> mark affected fields accordingly.
-#    - Heavy compression artifacts make small text blocky or illegible (this
-#      especially affects the government warning, which is usually printed in
-#      small font) -> mark "unreadable" or "warning" rather than guessing at
-#      the standard wording.
-#    - The image is sharp, well-lit, and every character is clearly
-#      distinguishable -> proceed normally, no quality concern.
-
-# 2. For each field, extract the exact text visible on the label — but only
-#    report values you actually read with confidence, per instruction 1.
-
-# 3. You MUST explicitly compare the EXTRACTED text against the EXPECTED value
-#    for that SAME field before choosing a status. Never assign "pass" just
-#    because you successfully read some text off the label — a legible reading
-#    is not the same as a match. For every field, restate both values to
-#    yourself and ask: "Is this the SAME real-world information, just written
-#    or formatted differently, or is it ACTUALLY DIFFERENT information?"
-#    - Same information, different formatting only (capitalization, spacing,
-#      punctuation, abbreviations, unit notation) -> status "pass".
-#    - Actually different information (different brand, different quantity,
-#      different class/type, different address, or any other substantive
-#      discrepancy) -> status "fail", even if the extracted text is perfectly
-#      legible.
-
-# 4. Worked examples of this comparison:
-#    - Expected "750ml", extracted "750 mL" -> the SAME quantity, just written
-#      differently -> status "pass".
-#    - Expected "1 L", extracted "750 mL" -> DIFFERENT quantities (1 liter is
-#      not 750 milliliters) -> status "fail", not "pass".
-#    - Expected "Bourbon Whiskey", extracted "Stone's Throw" -> completely
-#      unrelated values (a class/type expectation compared against what is
-#      clearly a brand name, not a class/type) -> status "fail".
-
-# 5. If you are not highly confident in a reading — per the quality check in
-#    instruction 1, due to blur, glare, low contrast, a crooked angle, heavy
-#    compression, or any other image-quality issue — use "unreadable" (you
-#    cannot make out the text at all) or "warning" (you can make out the text
-#    but are not fully confident it's accurate). This rule OVERRIDES instruction
-#    3: even if your best-guess reading would match the expected value, if you
-#    are not confident you actually read it correctly, do not report "pass".
-#    Never report "pass" for a field you are uncertain about just because your
-#    best guess happens to resemble the expected value.
-
-# 6. If a field is completely absent from the label, set status to "fail".
-
-# 7. If there is a minor discrepancy that is not a full content mismatch (e.g. a
-#    small OCR-level ambiguity), set status to "warning".
-
-# 8. The government_warning field is handled separately by the backend for the
-#    MATCH decision, but you must still apply the quality check in instruction 1
-#    to it — if you cannot confidently read the full warning text (e.g. due to
-#    small font size combined with blur/compression), extract what you can and
-#    note your uncertainty; do not fabricate or assume standard wording you
-#    cannot actually see. Give it status "pass" only if you are confident in
-#    your reading; otherwise use "unreadable" or "warning" — the backend applies
-#    exact-match validation on top of whatever you extract, but a low-confidence
-#    guess should not be silently passed through as "pass".
-
-# 9. Do NOT apply exact-match logic yourself for any field except government_warning's
-#    final match decision (the backend handles that comparison separately) — but
-#    DO apply the quality/confidence check from instruction 1 to every field,
-#    including government_warning.
-
-# Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation
-# outside the JSON. Use this exact schema. Fill in "reasoning" for every field
-# BEFORE deciding its status — restate the expected and extracted values for
-# that field, note your confidence in the reading per instruction 1, and state
-# whether they are the same information differently formatted, or actually
-# different information, per instruction 3 above:
-
-# {{
-#   "brand_name": {{
-#     "reasoning": "<confidence in reading: ...; expected: ...; extracted: ...; same information differently formatted, or actually different information, and why>",
-#     "status": "pass" | "fail" | "warning" | "unreadable",
-#     "extracted_value": "<text from label or null if unreadable>",
-#     "note": "<optional explanation for non-pass status>"
-#   }},
-#   "class_type": {{ ... }},
-#   "alcohol_content": {{ ... }},
-#   "net_contents": {{ ... }},
-#   "bottler_info": {{ ... }},
-#   "country_of_origin": {{ ... }},
-#   "government_warning": {{
-#     "reasoning": "<confidence in reading the full warning text>",
-#     "status": "pass" | "fail" | "warning" | "unreadable",
-#     "extracted_value": "<full government warning text as it appears on the label, or null if unreadable>",
-#     "note": "<optional explanation for non-pass status>"
-#   }}
-# }}
-# """
 
 
 def build_verify_prompt(application_data: ApplicationData) -> str:
@@ -377,9 +301,17 @@ def parse_verification_response(
             except ValueError:
                 status = FieldStatus.unreadable
 
+            # "unreadable" is defined (per the prompt schema) as "no text was
+            # confidently read" — enforce that invariant here rather than trust
+            # the model to leave extracted_value null on its own, since a model
+            # occasionally fills it in anyway despite marking the field unreadable.
+            extracted_value = fd.get("extracted_value")
+            if status == FieldStatus.unreadable:
+                extracted_value = None
+
             fields[name] = FieldResult(
                 status=status,
-                extracted_value=fd.get("extracted_value"),
+                extracted_value=extracted_value,
                 expected_value=expected_map[name],
                 note=fd.get("note"),
             )

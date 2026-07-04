@@ -100,6 +100,50 @@ async def test_mismatched_application_data_fails(rasterize_sample, vision_adapte
     )
 
 
+# Comparison fields only — government_warning is Group B (verbatim transcription,
+# exact-matched by the backend) and isn't subject to this anchoring failure mode.
+COMPARISON_FIELDS = [
+    "brand_name",
+    "class_type",
+    "alcohol_content",
+    "net_contents",
+    "bottler_info",
+    "country_of_origin",
+]
+
+
+async def test_garbage_expected_values_are_never_echoed_as_extracted(
+    rasterize_sample, vision_adapter
+):
+    """Regression test: extracted_value must reflect what the model actually
+    read off the image, never a copy of expected_value.
+
+    Replaces every Group A expected value with meaningless placeholder text
+    ("dd" / "wd") that cannot possibly appear on the real label image. A
+    genuinely-reading model can never legitimately extract "dd" or "wd" from
+    this label, so any field whose extracted_value equals its (garbage)
+    expected_value means the model anchored on the expected value instead of
+    reading the image — the exact bug this test guards against.
+    """
+    png_bytes = rasterize_sample(PASS_SAMPLE["filename"])
+
+    garbage_data = copy.deepcopy(PASS_SAMPLE["application_data"])
+    for i, field in enumerate(COMPARISON_FIELDS):
+        garbage_data[field] = "dd" if i % 2 == 0 else "wd"
+    application_data = ApplicationData(**garbage_data)
+
+    result = await vision_adapter.verify_label(_b64(png_bytes), "image/png", application_data)
+
+    for field in COMPARISON_FIELDS:
+        field_result = getattr(result, field)
+        assert field_result.extracted_value != field_result.expected_value, (
+            f"{field}: extracted_value ({field_result.extracted_value!r}) equals "
+            f"the garbage expected_value ({field_result.expected_value!r}). The "
+            "model echoed the expected value instead of reading the label image — "
+            f"this should be impossible for placeholder text. Full result: {field_result}"
+        )
+
+
 @pytest.mark.parametrize(
     "degradation_name, degrade_fn, output_mime",
     DEGRADATIONS,
