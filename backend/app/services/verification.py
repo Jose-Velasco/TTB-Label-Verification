@@ -47,7 +47,8 @@ class VerificationService:
         files: list[UploadFile],
         application_data: ApplicationData,
     ) -> AsyncIterator[VerificationResult]:
-        """Verify multiple labels concurrently, yielding results as each completes.
+        """Verify multiple labels concurrently, yielding each result as soon as
+        its own task finishes — not after the whole batch completes.
 
         Concurrency is bounded by a semaphore derived from RATE_LIMIT_RPM so the
         batch doesn't exhaust the provider's per-minute quota all at once.
@@ -56,25 +57,31 @@ class VerificationService:
         max_concurrent = max(1, self.settings.RATE_LIMIT_RPM // 4)
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def bounded_verify(f: UploadFile) -> VerificationResult:
-            async with semaphore:
-                return await self.verify_single(f, application_data)
-
         results_queue: asyncio.Queue[VerificationResult | None] = asyncio.Queue()
+
+        async def bounded_verify(f: UploadFile) -> None:
+            # Each task enqueues its own result the moment it finishes, so
+            # completions can be consumed as they arrive instead of waiting
+            # for the slowest task in the batch.
+            async with semaphore:
+                try:
+                    result = await self.verify_single(f, application_data)
+                except Exception as exc:
+                    # verify_single already catches its own errors internally;
+                    # this is a backstop for anything unexpected that still
+                    # escapes it, keeping one failure from blocking the rest.
+                    note = f"Label verification failed: {exc}"
+                    logger.warning(note)
+                    result = _make_needs_review_result(application_data, note)
+                    result.filename = f.filename
+            await results_queue.put(result)
 
         async def run_all() -> None:
             tasks = [asyncio.create_task(bounded_verify(f)) for f in files]
-            # return_exceptions=True means one failure doesn't cancel others
-            raw = await asyncio.gather(*tasks, return_exceptions=True)
-            for idx, item in enumerate(raw):
-                if isinstance(item, BaseException):
-                    note = f"Label verification failed: {item}"
-                    logger.warning(note)
-                    fallback = _make_needs_review_result(application_data, note)
-                    fallback.filename = files[idx].filename
-                    await results_queue.put(fallback)
-                else:
-                    await results_queue.put(item)
+            # return_exceptions=True means one failure doesn't cancel others;
+            # each task already enqueued its own result/fallback above, so
+            # this is only waiting to know when to push the sentinel.
+            await asyncio.gather(*tasks, return_exceptions=True)
             await results_queue.put(None)  # sentinel
 
         asyncio.create_task(run_all())
