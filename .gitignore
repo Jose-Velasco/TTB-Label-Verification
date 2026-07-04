@@ -1,5 +1,6 @@
 # Environment files — never commit real keys or passwords
 .env
+.env.dev
 .env.prod
 .env.local
 .env.*.local
