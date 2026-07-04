@@ -18,7 +18,7 @@ import { VerificationResult, FieldResult, FieldStatus, OverallStatus } from '../
           </p>
         </div>
         <span [class]="overallBadgeClass(result.overall_status)">
-          {{ result.overall_status | titlecase }}
+          {{ overallStatusLabel(result.overall_status) | titlecase }}
         </span>
       </div>
 
@@ -78,5 +78,12 @@ export class VerificationResultComponent {
 
   overallBadgeClass(status: OverallStatus): string {
     return `badge badge-${status}`;
+  }
+
+  overallStatusLabel(status: OverallStatus): string {
+    // "needs_review" has no word boundary for `| titlecase` to find, so it
+    // renders as "Needs_review" (then "NEEDS_REVIEW" under the badge's
+    // uppercase styling) without this — replace the underscore first.
+    return status.replace(/_/g, ' ');
   }
 }

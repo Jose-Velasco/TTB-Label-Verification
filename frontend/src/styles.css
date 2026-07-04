@@ -242,3 +242,144 @@ textarea:focus {
   margin-bottom: 1rem;
   font-size: 0.875rem;
 }
+
+/* Batch results: triage-oriented summary + compact expandable rows */
+
+.batch-summary-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.batch-summary-count {
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.batch-summary-sep {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+}
+
+.batch-summary-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 0.875rem;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.batch-filter {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.batch-filter-btn {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.batch-filter-btn:hover {
+  border-color: var(--primary);
+}
+
+.batch-filter-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.batch-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.batch-row-header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.batch-row-header:hover {
+  background: var(--bg);
+}
+
+.batch-row-status {
+  flex-shrink: 0;
+  min-width: 6.5rem;
+}
+
+.batch-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.batch-row-filename {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-row-summary {
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+}
+
+.batch-row-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.batch-row-chevron {
+  display: inline-block;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.batch-row-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.batch-row-detail {
+  padding: 0 1.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.batch-row-detail .card {
+  margin-bottom: 0;
+  margin-top: 1.25rem;
+}

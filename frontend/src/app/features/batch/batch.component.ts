@@ -6,8 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ApplicationData } from '../../models/label.models';
 import { ApplicationFormComponent } from '../../shared/components/application-form/application-form.component';
 import { BatchUploaderComponent } from '../../shared/components/batch-uploader/batch-uploader.component';
-import { BatchProgressComponent, BatchProgressItem } from '../../shared/components/batch-progress/batch-progress.component';
-import { VerificationResultComponent } from '../../shared/components/verification-result/verification-result.component';
+import { BatchResultsComponent, BatchProgressItem } from '../../shared/components/batch-results/batch-results.component';
 
 @Component({
   selector: 'app-batch',
@@ -18,8 +17,7 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
     RouterLinkActive,
     ApplicationFormComponent,
     BatchUploaderComponent,
-    BatchProgressComponent,
-    VerificationResultComponent,
+    BatchResultsComponent,
   ],
   template: `
     <div class="container">
@@ -73,12 +71,7 @@ import { VerificationResultComponent } from '../../shared/components/verificatio
       </div>
 
       <div style="margin-top:1.5rem" *ngIf="progressItems().length">
-        <app-batch-progress [items]="progressItems()" />
-      </div>
-
-      <div style="margin-top:1rem" *ngFor="let item of progressItems()">
-        <app-verification-result *ngIf="item.result" [result]="item.result" />
-        <div *ngIf="item.error" class="alert-error">{{ item.filename }}: {{ item.error }}</div>
+        <app-batch-results [items]="progressItems()" />
       </div>
     </div>
   `,
