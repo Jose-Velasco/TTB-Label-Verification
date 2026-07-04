@@ -42,7 +42,13 @@ services:
       - ollama_data:/root/.ollama
     ports:
       - "11434:11434"
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 8 && ollama pull gemma3:4b-it-qat && wait"]
+    environment:
+      # Default (4096) is too small for this app's long verify prompt (~2.8k
+      # tokens) plus gemma4's unbounded thinking-mode output plus the JSON
+      # answer — was silently truncating generation before any JSON was
+      # written. Raised to give thinking + answer enough headroom.
+      OLLAMA_CONTEXT_LENGTH: "8192"
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 8 && ollama pull gemma4:e4b-it-qat && wait"]
     gpus: all
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:11434/"]
