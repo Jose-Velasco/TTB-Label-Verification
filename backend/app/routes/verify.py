@@ -50,7 +50,6 @@ async def verify_label(
     service: VerificationService = Depends(_get_service),
 ) -> VerificationResult:
     """Verify a single label image against application data."""
-    print("hi")
     try:
         app_data = ApplicationData.model_validate_json(application_data)
     except Exception as exc:
