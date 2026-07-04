@@ -35,7 +35,7 @@ export class ApiService {
   ): Observable<VerificationResult> {
     return new Observable<VerificationResult>((observer) => {
       const fd = new FormData();
-      files.forEach((f) => fd.append("files", f));
+      files.forEach((f) => fd.append("images", f));
       fd.append("application_data", JSON.stringify(applicationData));
 
       const controller = new AbortController();
