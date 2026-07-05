@@ -6,6 +6,7 @@ import {
   ApplicationData,
   ExtractedApplicationData,
   StressTestEstimate,
+  StressTestResult,
   VerificationResult,
 } from "../../models/label.models";
 
@@ -131,9 +132,11 @@ export class ApiService {
 
   // Generation and verification both happen server-side in this one
   // request — see backend/app/routes/stress_test.py — so unlike verifyBatch
-  // there are no files to upload, just the requested count.
-  runStressTest(count: number): Observable<VerificationResult> {
-    return this.streamNdjson<VerificationResult>(
+  // there are no files to upload, just the requested count. Each streamed
+  // line also carries the ground truth baked into that generated image, so
+  // the frontend can score correctness, not just display outcomes.
+  runStressTest(count: number): Observable<StressTestResult> {
+    return this.streamNdjson<StressTestResult>(
       "/stress-test/run",
       JSON.stringify({ count }),
       true,

@@ -52,3 +52,12 @@ export interface StressTestEstimate {
   estimated_seconds: number;
   estimated_cost_usd: number | null;
 }
+
+export type ExpectedOutcomeStatus = 'approved' | 'rejected' | 'skipped' | 'unknown';
+
+export interface StressTestResult {
+  result: VerificationResult;
+  expected_status: ExpectedOutcomeStatus;
+  expected_failing_fields: string[];
+  outcome_match: boolean;
+}

@@ -9,8 +9,9 @@ from starlette.datastructures import Headers, UploadFile
 
 from app.config import settings
 from app.constants import AUTH_COOKIE_NAME, MAX_STRESS_TEST_IMAGES
-from app.models import ApplicationData
+from app.models import ApplicationData, FieldStatus, VerificationResult
 from app.services.stress_test_generator import (
+    ExpectedOutcome,
     generate_stress_test_batch,
     split_main_and_unmatched_counts,
 )
@@ -48,6 +49,42 @@ class StressTestEstimate(BaseModel):
     estimated_cost_usd: float | None = Field(
         None, description="None when the current provider's pricing isn't modeled (e.g. Gemini)"
     )
+
+
+class StressTestResult(BaseModel):
+    """One streamed NDJSON line for /run: the real verification result plus
+    the ground truth the generator built into that image, so the frontend
+    can show correctness (not just outcome) without re-deriving it.
+    """
+
+    result: VerificationResult
+    expected_status: str = Field(
+        ..., description="Ground truth overall outcome: 'approved', 'rejected', or 'skipped'"
+    )
+    expected_failing_fields: list[str] = Field(
+        default_factory=list,
+        description="Fields the generator deliberately corrupted or that are always-failing (only meaningful when expected_status is 'rejected')",
+    )
+    outcome_match: bool = Field(
+        ..., description="Whether this result's status (and, if rejected, its failing fields) matched the ground truth"
+    )
+
+
+def _score_result(result: VerificationResult, expected: ExpectedOutcome) -> bool:
+    """Does the real verify result match what the generator built into this
+    image? For rejected cases, the EXPECTED field(s) must have actually
+    failed — not just some other field.
+    """
+    if expected.status == "skipped":
+        return result.skipped
+    if result.skipped or result.overall_status.value != expected.status:
+        return False
+    if expected.status == "rejected":
+        return all(
+            getattr(result, field_name).status == FieldStatus.fail
+            for field_name in expected.failing_fields
+        )
+    return True
 
 
 def _make_upload_file(filename: str, data: bytes) -> UploadFile:
@@ -95,8 +132,9 @@ async def run_stress_test(
     no file upload or CSV round trip needed, since generation and
     verification both happen server-side within this one request.
 
-    Streams NDJSON results exactly like /api/verify-batch, so the frontend
-    reuses the same streaming client and batch-results UI for both.
+    Streams NDJSON like /api/verify-batch, but each line is a StressTestResult
+    (the VerificationResult plus the ground truth baked into that image) so
+    the frontend can score correctness, not just display outcomes.
     """
     batch = generate_stress_test_batch(body.count)
     images = [
@@ -106,9 +144,22 @@ async def run_stress_test(
         row.filename: ApplicationData(**row.application_data) for row in batch.main_rows
     }
 
+    expected_outcomes = batch.expected_outcomes
+
     async def stream_results():
         async for result in service.verify_batch(images, application_data_map):
-            yield result.model_dump_json() + "\n"
+            expected = expected_outcomes.get(result.filename or "")
+            if expected is None:
+                # Every filename this endpoint generates has ground truth —
+                # this would only happen if something re-filenamed a result.
+                expected = ExpectedOutcome(status="unknown")
+            item = StressTestResult(
+                result=result,
+                expected_status=expected.status,
+                expected_failing_fields=list(expected.failing_fields),
+                outcome_match=_score_result(result, expected),
+            )
+            yield item.model_dump_json() + "\n"
 
     return StreamingResponse(
         stream_results(),

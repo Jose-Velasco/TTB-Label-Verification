@@ -1,5 +1,7 @@
 from app.services.stress_test_generator import (
     NUM_UNMATCHED_IMAGES,
+    ExpectedOutcome,
+    compute_expected_outcome,
     generate_stress_test_batch,
     split_main_and_unmatched_counts,
 )
@@ -74,3 +76,60 @@ def test_generate_batch_produces_real_rasterized_png_bytes():
 
     for data in batch.image_bytes.values():
         assert data[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
+
+
+# --- Ground truth (compute_expected_outcome / expected_outcomes) ---
+
+
+def test_compute_expected_outcome_approved_for_correct_bucket_on_compliant_sample():
+    outcome = compute_expected_outcome("01", "correct", None)
+    assert outcome == ExpectedOutcome(status="approved", failing_fields=())
+
+
+def test_compute_expected_outcome_rejected_for_wrong_field():
+    outcome = compute_expected_outcome("01", "wrong_field", "brand_name")
+    assert outcome == ExpectedOutcome(status="rejected", failing_fields=("brand_name",))
+
+
+def test_compute_expected_outcome_rejected_for_missing_field():
+    # Unlike the CSV-import script's expected_outcome(), a blank field here is
+    # verified (not excluded) and expected to mismatch the label's real text.
+    outcome = compute_expected_outcome("01", "missing_field", "net_contents")
+    assert outcome == ExpectedOutcome(status="rejected", failing_fields=("net_contents",))
+
+
+def test_compute_expected_outcome_non_compliant_sample_always_rejected():
+    # Samples other than "01" bake a non-compliant government warning into
+    # the artwork itself, regardless of application data correctness.
+    outcome = compute_expected_outcome("02", "correct", None)
+    assert outcome == ExpectedOutcome(status="rejected", failing_fields=("government_warning",))
+
+
+def test_compute_expected_outcome_non_compliant_sample_with_corrupted_field():
+    outcome = compute_expected_outcome("03", "wrong_field", "alcohol_content")
+    assert outcome == ExpectedOutcome(
+        status="rejected", failing_fields=("alcohol_content", "government_warning")
+    )
+
+
+def test_generate_batch_filenames_bake_in_expected_outcome():
+    batch = generate_stress_test_batch(10, seed=1)
+
+    for row in batch.main_rows:
+        if row.expected.status == "approved":
+            assert "APPROVED" in row.filename
+        else:
+            assert "REJECTED" in row.filename
+            for field_name in row.expected.failing_fields:
+                assert field_name in row.filename
+
+
+def test_generate_batch_expected_outcomes_cover_every_filename():
+    batch = generate_stress_test_batch(10, seed=1)
+
+    all_filenames = {row.filename for row in batch.main_rows} | set(
+        batch.unmatched_image_filenames
+    )
+    assert set(batch.expected_outcomes.keys()) == all_filenames
+    for filename in batch.unmatched_image_filenames:
+        assert batch.expected_outcomes[filename].status == "skipped"

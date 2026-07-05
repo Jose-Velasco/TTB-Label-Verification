@@ -1,6 +1,11 @@
 import { Component, Input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FieldResult, OverallStatus, VerificationResult } from '../../../models/label.models';
+import {
+  ExpectedOutcomeStatus,
+  FieldResult,
+  OverallStatus,
+  VerificationResult,
+} from '../../../models/label.models';
 import { VerificationResultComponent } from '../verification-result/verification-result.component';
 
 export interface BatchProgressItem {
@@ -8,9 +13,14 @@ export interface BatchProgressItem {
   status: 'pending' | 'done' | 'error';
   result?: VerificationResult;
   error?: string;
+  // Ground truth, present only for stress-test runs (regular batch/verify
+  // results have no expected outcome to score against).
+  expectedStatus?: ExpectedOutcomeStatus;
+  expectedFailingFields?: string[];
+  outcomeMatch?: boolean;
 }
 
-type FilterMode = 'all' | 'attention';
+type FilterMode = 'all' | 'attention' | 'mismatch';
 
 const FIELD_ORDER: (keyof VerificationResult)[] = [
   'brand_name',
@@ -37,6 +47,15 @@ const FIELD_ORDER: (keyof VerificationResult)[] = [
         <ng-container *ngIf="avgProcessingTimeSec as avgSec">
           <span class="batch-summary-sep">·</span>
           <span class="batch-summary-avg-time">avg {{ avgSec }}s/label</span>
+        </ng-container>
+        <ng-container *ngIf="hasGroundTruth">
+          <span class="batch-summary-sep">·</span>
+          <span
+            class="batch-summary-count"
+            [style.color]="mismatchCount > 0 ? 'var(--fail)' : 'var(--pass)'"
+          >
+            {{ matchedCount }}/{{ scoredCount }} matched expected outcome
+          </span>
         </ng-container>
       </div>
       <div class="batch-summary-pending" *ngIf="pendingCount > 0">
@@ -65,6 +84,15 @@ const FIELD_ORDER: (keyof VerificationResult)[] = [
       >
         Needs Attention ({{ attentionCount }})
       </button>
+      <button
+        *ngIf="hasGroundTruth"
+        type="button"
+        class="batch-filter-btn"
+        [class.active]="filterMode() === 'mismatch'"
+        (click)="filterMode.set('mismatch')"
+      >
+        Mismatches ({{ mismatchCount }})
+      </button>
     </div>
 
     <div class="batch-row" *ngFor="let item of visibleItems">
@@ -88,6 +116,7 @@ const FIELD_ORDER: (keyof VerificationResult)[] = [
             {{ overallStatusLabel(item.result.overall_status) | titlecase }}
           </span>
           <span *ngIf="item.status === 'error'" class="badge badge-fail">Error</span>
+          <span *ngIf="item.outcomeMatch === false" class="badge badge-fail">Mismatch</span>
         </span>
 
         <span class="batch-row-text">
@@ -103,6 +132,9 @@ const FIELD_ORDER: (keyof VerificationResult)[] = [
           </span>
           <span class="batch-row-summary" *ngIf="item.status === 'error'">
             {{ item.error ?? 'Processing failed' }}
+          </span>
+          <span class="batch-row-summary" *ngIf="item.outcomeMatch === false" style="color:var(--fail)">
+            {{ mismatchDetail(item) }}
           </span>
         </span>
 
@@ -158,8 +190,33 @@ export class BatchResultsComponent {
     return this.items.filter((i) => this.needsAttention(i)).length;
   }
 
+  // True only for stress-test runs, where every item carries ground truth —
+  // regular batch/verify results never set outcomeMatch, so this (and the
+  // Mismatches filter/correctness summary it gates) stay hidden for those.
+  get hasGroundTruth(): boolean {
+    return this.items.some((i) => i.outcomeMatch !== undefined);
+  }
+
+  get scoredCount(): number {
+    return this.items.filter((i) => i.outcomeMatch !== undefined).length;
+  }
+
+  get matchedCount(): number {
+    return this.items.filter((i) => i.outcomeMatch === true).length;
+  }
+
+  get mismatchCount(): number {
+    return this.items.filter((i) => i.outcomeMatch === false).length;
+  }
+
   get visibleItems(): BatchProgressItem[] {
-    const filtered = this.filterMode() === 'all' ? this.items : this.items.filter((i) => this.needsAttention(i));
+    const mode = this.filterMode();
+    const filtered =
+      mode === 'all'
+        ? this.items
+        : mode === 'mismatch'
+          ? this.items.filter((i) => i.outcomeMatch === false)
+          : this.items.filter((i) => this.needsAttention(i));
 
     // Triage order: needs-attention first, still-processing next, approved
     // last — stable within each group so arrival order is preserved.
@@ -211,7 +268,24 @@ export class BatchResultsComponent {
   }
 
   private needsAttention(item: BatchProgressItem): boolean {
-    return item.status === 'error' || (item.status === 'done' && item.result?.overall_status !== 'approved');
+    // outcomeMatch === false also flags a "false approve": the model said
+    // approved but ground truth expected a rejection (or vice versa), which
+    // result.overall_status alone wouldn't surface as needing a look.
+    return (
+      item.status === 'error' ||
+      item.outcomeMatch === false ||
+      (item.status === 'done' && item.result?.overall_status !== 'approved')
+    );
+  }
+
+  mismatchDetail(item: BatchProgressItem): string {
+    if (item.outcomeMatch !== false) return '';
+    const expected =
+      item.expectedStatus === 'rejected' && item.expectedFailingFields?.length
+        ? `rejected (${item.expectedFailingFields.join(', ')} expected to fail)`
+        : item.expectedStatus;
+    const actual = item.result?.skipped ? 'skipped' : (item.result?.overall_status ?? 'unknown');
+    return `Ground truth mismatch — expected ${expected}, got ${actual}`;
   }
 
   private fieldLabel(key: keyof VerificationResult): string {

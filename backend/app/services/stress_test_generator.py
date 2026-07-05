@@ -105,7 +105,8 @@ def expected_outcome(sample_id: str, bucket: str) -> str:
     batch in the frontend's CSV table) — NOT accurate for callers that feed
     rows straight into VerificationService.verify_batch, where a blank field
     still gets verified (and will likely fail or need review) rather than
-    being excluded. Only meaningful for the CLI script's CSV-import scenario.
+    being excluded. Only meaningful for the CLI script's CSV-import scenario;
+    see compute_expected_outcome for the ground truth used by /api/stress-test.
     """
     if bucket == "missing_field":
         return "SKIPPED (incomplete row, excluded from run)"
@@ -116,6 +117,53 @@ def expected_outcome(sample_id: str, bucket: str) -> str:
     return "APPROVED"
 
 
+@dataclass(frozen=True)
+class ExpectedOutcome:
+    """Ground truth for scoring a real verify result against what this
+    generator deliberately built into the image: samples other than "01" bake
+    a non-compliant government warning into the artwork itself (always fails,
+    regardless of application data), and wrong_field/missing_field rows
+    corrupt one comparison field so it should mismatch on verification.
+    """
+
+    status: str  # "approved" | "rejected" | "skipped"
+    failing_fields: tuple[str, ...] = ()
+
+
+def compute_expected_outcome(
+    sample_id: str, bucket: str, corrupted_field: str | None
+) -> ExpectedOutcome:
+    """Ground truth for a row fed straight into VerificationService.verify_batch
+    (the /api/stress-test/run path).
+
+    Unlike expected_outcome() above (CSV-import semantics), a missing_field
+    row is NOT excluded here — the blank value is verified like any other and
+    is expected to mismatch the label's real printed text, so it's treated
+    the same as wrong_field: the corrupted field is expected to fail.
+    """
+    failing: list[str] = []
+    if bucket in ("wrong_field", "missing_field") and corrupted_field:
+        failing.append(corrupted_field)
+    if sample_id != "01":
+        # Samples 02/03 bake a non-compliant government warning into the
+        # artwork itself — always fails regardless of application data.
+        failing.append("government_warning")
+    status = "rejected" if failing else "approved"
+    return ExpectedOutcome(status=status, failing_fields=tuple(failing))
+
+
+def _tagged_filename(idx: int, expected: ExpectedOutcome, suffix: str = "") -> str:
+    """Bake the ground truth into the generated filename (e.g.
+    "label_REJECTED (brand_name)_004.png") so a reviewer can also sanity-check
+    outcomes by eye, alongside the structured ExpectedOutcome scoring.
+    """
+    if expected.status == "rejected":
+        tag = f"REJECTED ({', '.join(expected.failing_fields)})"
+    else:
+        tag = expected.status.upper()
+    return f"label_{tag}_{idx:03d}{suffix}.png"
+
+
 @dataclass
 class GeneratedMainRow:
     filename: str
@@ -123,6 +171,7 @@ class GeneratedMainRow:
     bucket: str
     corrupted_field: str | None
     application_data: dict[str, str]
+    expected: ExpectedOutcome
 
 
 @dataclass
@@ -130,6 +179,18 @@ class StressTestBatch:
     main_rows: list[GeneratedMainRow]
     unmatched_image_filenames: list[str]
     image_bytes: dict[str, bytes]  # filename -> PNG bytes, covers every generated image
+
+    @property
+    def expected_outcomes(self) -> dict[str, ExpectedOutcome]:
+        """Ground truth for every generated filename, main row or unmatched."""
+        outcomes = {row.filename: row.expected for row in self.main_rows}
+        outcomes.update(
+            {
+                filename: ExpectedOutcome(status="skipped")
+                for filename in self.unmatched_image_filenames
+            }
+        )
+        return outcomes
 
 
 def split_main_and_unmatched_counts(total_count: int) -> tuple[int, int]:
@@ -177,8 +238,9 @@ def generate_stress_test_batch(total_count: int, seed: int | None = None) -> Str
     for sample in sample_sequence:
         idx += 1
         bucket = rng.choices(list(BUCKET_WEIGHTS), weights=list(BUCKET_WEIGHTS.values()))[0]
-        filename = f"label_{idx:03d}.png"
         fields, corrupted_field = build_row(sample, bucket, rng)
+        expected = compute_expected_outcome(sample["id"], bucket, corrupted_field)
+        filename = _tagged_filename(idx, expected)
 
         image_bytes[filename] = rasterize(sample["filename"])
         main_rows.append(
@@ -188,13 +250,14 @@ def generate_stress_test_batch(total_count: int, seed: int | None = None) -> Str
                 bucket=bucket,
                 corrupted_field=corrupted_field,
                 application_data=fields,
+                expected=expected,
             )
         )
 
     unmatched_image_filenames: list[str] = []
     for _ in range(unmatched_count):
         idx += 1
-        filename = f"label_{idx:03d}_unmatched.png"
+        filename = _tagged_filename(idx, ExpectedOutcome(status="skipped"), suffix="_unmatched")
         sample = rng.choice(samples)
         image_bytes[filename] = rasterize(sample["filename"])
         unmatched_image_filenames.append(filename)

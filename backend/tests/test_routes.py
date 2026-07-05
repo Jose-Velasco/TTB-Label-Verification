@@ -177,6 +177,97 @@ async def test_stress_test_run_streams_ndjson(client, auth_headers, mock_service
     assert "ndjson" in response.headers.get("content-type", "")
 
 
+def _field(status: FieldStatus, expected: str) -> FieldResult:
+    return FieldResult(status=status, extracted_value=expected, expected_value=expected)
+
+
+def _result(overall: OverallStatus, filename: str, **fail_fields: FieldStatus) -> VerificationResult:
+    """Build a VerificationResult where every field passes except those
+    named in fail_fields (which get the given non-pass status).
+    """
+    d = SAMPLE_APP_DATA
+    fields = {
+        name: _field(fail_fields.get(name, FieldStatus.pass_), d[name]) for name in d
+    }
+    return VerificationResult(overall_status=overall, filename=filename, **fields)
+
+
+async def test_stress_test_run_scores_results_against_ground_truth(client, auth_headers, mock_service):
+    from app.services.stress_test_generator import (
+        ExpectedOutcome,
+        GeneratedMainRow,
+        StressTestBatch,
+    )
+
+    approved_row = GeneratedMainRow(
+        filename="label_APPROVED_001.png",
+        sample_id="01",
+        bucket="correct",
+        corrupted_field=None,
+        application_data=SAMPLE_APP_DATA,
+        expected=ExpectedOutcome(status="approved"),
+    )
+    non_compliant_row = GeneratedMainRow(
+        filename="label_REJECTED (government_warning)_002.png",
+        sample_id="02",
+        bucket="correct",
+        corrupted_field=None,
+        application_data=SAMPLE_APP_DATA,
+        expected=ExpectedOutcome(status="rejected", failing_fields=("government_warning",)),
+    )
+    fake_batch = StressTestBatch(
+        main_rows=[approved_row, non_compliant_row],
+        unmatched_image_filenames=["label_SKIPPED_003_unmatched.png"],
+        image_bytes={
+            approved_row.filename: b"png",
+            non_compliant_row.filename: b"png",
+            "label_SKIPPED_003_unmatched.png": b"png",
+        },
+    )
+
+    async def _gen():
+        # Correctly matches ground truth: approved, all fields pass.
+        yield _result(OverallStatus.approved, approved_row.filename)
+        # The government-warning bug: the label is non-compliant (ground
+        # truth expects government_warning to fail) but the model call
+        # incorrectly reports every field passing -> must be flagged as a
+        # mismatch, not silently counted as correct.
+        yield _result(OverallStatus.approved, non_compliant_row.filename)
+        # Skipped as expected (no application data for this filename).
+        yield VerificationResult(
+            overall_status=OverallStatus.needs_review,
+            filename="label_SKIPPED_003_unmatched.png",
+            skipped=True,
+            **{name: _field(FieldStatus.unreadable, "") for name in SAMPLE_APP_DATA},
+        )
+
+    mock_service.verify_batch = MagicMock(return_value=_gen())
+
+    with patch("app.routes.stress_test.generate_stress_test_batch", return_value=fake_batch):
+        response = await client.post(
+            "/api/stress-test/run",
+            json={"count": 3},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    lines = [json.loads(line) for line in response.text.strip().splitlines()]
+    by_filename = {line["result"]["filename"]: line for line in lines}
+
+    approved_line = by_filename[approved_row.filename]
+    assert approved_line["expected_status"] == "approved"
+    assert approved_line["outcome_match"] is True
+
+    bug_line = by_filename[non_compliant_row.filename]
+    assert bug_line["expected_status"] == "rejected"
+    assert bug_line["expected_failing_fields"] == ["government_warning"]
+    assert bug_line["outcome_match"] is False  # caught the bug: expected fail, got pass
+
+    skipped_line = by_filename["label_SKIPPED_003_unmatched.png"]
+    assert skipped_line["expected_status"] == "skipped"
+    assert skipped_line["outcome_match"] is True
+
+
 async def test_stress_test_run_rejects_count_above_cap(client, auth_headers):
     response = await client.post(
         "/api/stress-test/run",
