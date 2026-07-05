@@ -1,233 +1,129 @@
 # TTB Label Verification
 
-An AI-powered alcohol label compliance verification tool for TTB (Alcohol and Tobacco Tax and Trade Bureau) compliance agents. Upload label images; a vision AI model extracts fields and compares them against application data, returning per-field pass/fail/warning/unreadable status.
+AI-powered alcohol label compliance verification for TTB compliance agents. Upload or photograph a label, compare it against submitted application data, get a pass/fail per field.
+
+**Live demo:** _[url]_
+**Repo:** _[url]_
 
 ---
 
-## What It Does
+## Setup
 
-1. **Upload** a label image (JPEG, PNG, or WebP, max 10 MB) — or use camera capture
-2. **Enter** the seven required TTB application fields
-3. **Verify** — the AI model extracts each field from the image and fuzzy-matches against the submitted data
-4. **Review** per-field results with an overall `approved` / `rejected` / `needs_review` verdict
-
-Batch mode accepts up to 20 images simultaneously and streams results as each label completes (NDJSON).
-
----
-
-## Architecture
-
-### Ports & Adapters (Hexagonal)
-
-The vision model provider is swapped via a single environment variable — **zero code changes** required to switch from Ollama (local dev) to Gemini (production):
-
-```
-Routes → VerificationService → VisionProvider (Protocol)
-                                      ↓
-                            LiteLLMVisionAdapter
-                                      ↓
-                         LiteLLM → Ollama / Gemini / OpenAI
-```
-
-- **`VisionProvider`** is a Python `Protocol` (structural subtyping) — the service layer depends on an interface, not a concrete implementation. This is the Ports & Adapters "port."
-- **`LiteLLMVisionAdapter`** is the single concrete "adapter." Swapping to a new provider means writing a new adapter class and wiring it in `main.py`'s lifespan — nothing else changes.
-
-### Key Technology Choices
-
-| Choice | Reason |
-|--------|--------|
-| **LiteLLM** | Unified interface for Ollama, Gemini, OpenAI, Anthropic, and 100+ more. No provider-specific SDK code anywhere. |
-| **aiolimiter** | Proactive rate limiting — acquires a token *before* each API call, preventing 429s rather than reacting to them. |
-| **tenacity** | Automatic retry with random exponential backoff on `RateLimitError` and `ServiceUnavailableError`. Prevents thundering-herd during large batch runs. |
-| **UV** | Fast Python package management with lockfile support; `uv sync --frozen` in Docker ensures reproducible builds. |
-| **FastAPI + async throughout** | Allows concurrent batch processing without blocking threads; NDJSON streaming is native. |
-| **Pydantic Settings** | All config from environment variables with type validation; no hardcoded values anywhere. |
-| **Angular 22 (standalone)** | Standalone components (no NgModules), functional guards, Reactive Forms, lazy-loaded routes, RxJS Observable NDJSON streaming. |
-
-### Government Warning Exact Match
-
-The TTB canonical warning is hardcoded in `backend/app/constants.py`. The validation logic (`services/validation.py`) performs a **strict exact-match** after stripping leading/trailing whitespace. The `GOVERNMENT WARNING:` prefix **must** be ALL CAPS — any deviation (title case, truncation, altered wording) is an immediate `fail`.
-
-All other seven fields use **fuzzy matching** via the LLM prompt — minor differences in capitalization, spacing, abbreviations, or unit formatting are treated as `pass`.
-
----
-
-## Dev Setup
-
-Two options: **Dev Container** (recommended — zero local tooling needed) or **Docker Compose** (if you prefer managing services manually).
-
----
-
-### Option A — Dev Container in VS Code (recommended)
-
-Everything runs inside a container. No Python, Node, or UV needed on your machine.
-
-**Prerequisites**
-
-- [VS Code](https://code.visualstudio.com/)
-- [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) (`ms-vscode-remote.remote-containers`)
-- Docker Desktop with Compose v2
-- 8 GB RAM available (Ollama + gemma3:4b)
-
-**Steps**
-
-1. Open the repo folder in VS Code
-2. When prompted _"Reopen in Container"_, click it — or run **Dev Containers: Reopen in Container** from the Command Palette (`Ctrl+Shift+P`)
-3. VS Code builds the container image and runs `post-create.sh`, which installs all Python and Node dependencies. This takes a few minutes the first time.
-4. Ollama starts as a sidecar and pulls `gemma3:4b` (~3 GB) in the background
-5. Launch the dev servers: **Terminal → Run Task → `Start: All`** (or `Ctrl+Shift+B`)
-6. VS Code auto-opens http://localhost:3000 once the frontend is up
-
-**What's included**
-
-| Feature | Detail |
-|---------|--------|
-| Python 3.12 + UV | Pre-installed in the container |
-| Node 22 + npm | Pre-installed in the container |
-| Recommended extensions | Auto-installed (Pylance, ESLint, etc.) |
-| Format on save | Black (Python) |
-| Pytest integration | Run/debug tests from the Testing sidebar |
-| Port forwarding | 4200 (frontend), 8000 (backend), 11434 (Ollama) |
-| Debugger | `F5` → `Debug: Backend` to set breakpoints in Python |
-
-**VS Code Tasks** (`Ctrl+Shift+B` or Terminal → Run Task):
-
-| Task | What it does |
-|------|-------------|
-| `Start: All` | Starts backend + frontend in parallel (default build task) |
-| `Start: Backend` | `uvicorn --reload` on port 8000 |
-| `Start: Frontend` | `ng serve` on port 4200 |
-| `Test: All` | Runs pytest + jest in parallel |
-| `Test: Backend` | `uv run pytest tests/ -v --cov=app` |
-| `Test: Frontend` | `npm test` (Jest) |
-
-**Rebuild the container** if you change `Dockerfile` or add new deps:
-Command Palette → **Dev Containers: Rebuild Container**
-
----
-
-### Option B — Docker Compose (manual)
-
-**Prerequisites**
-
-- Docker Desktop with Compose v2
-- 8 GB RAM available (Ollama + gemma3:4b)
-
-**Start**
+Requirements: Docker + Docker Compose, an OpenAI API key.
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build
+git clone <repo-url>
+cd ttb-label-verification
+cp backend/.env.dev.example backend/.env.dev   # add OPENAI_API_KEY
+docker compose -f .devcontainer/docker-compose.devcontainer.yml up
 ```
 
-On first run Ollama pulls `gemma3:4b` (~3 GB). This takes several minutes. The backend waits for the healthcheck before starting.
+- Frontend: `http://localhost:4200`
+- Backend: `http://localhost:8000` (`/docs` for API reference)
 
-- Frontend: http://localhost:4200
-- Backend API: http://localhost:8000
-- Access key: `dev-access-key-change-me` (from `.env.dev`)
-
-### Hot Reload
-
-Both backend (`uvicorn --reload`) and frontend (`ng serve --poll 500`) support hot reload — edit files and changes are picked up immediately without restarting containers.
-
-### Run Tests Locally
-
-**Backend** (requires Python 3.12 and UV):
 ```bash
-cd backend
-uv sync --extra dev
-uv run pytest tests/ -v --cov=app --cov-report=term-missing
+# tests
+cd backend && uv sync --extra dev && uv run pytest
+cd frontend && npm install && npm test
 ```
 
-This runs the fast, fully-mocked unit suite only — no network calls, deterministic,
-safe for CI.
-
-**Golden-sample eval suite** (opt-in, not run by default): exercises the real
-`LiteLLMVisionAdapter` against the sample labels in `backend/app/data/samples/`,
-including deliberately corrupted application data and degraded (blurred, rotated,
-low-contrast, compressed, glare) images. These calls hit a real vision model, so
-they're slow and non-deterministic — they are excluded from the default `pytest
-tests/` run via the `eval` marker and must be requested explicitly:
-```bash
-uv run pytest tests/ -v -m eval
-```
-Requires either Ollama running locally with the model in `VISION_MODEL` already
-pulled, or a valid `GEMINI_API_KEY` (real API usage/cost applies on Gemini). CI
-should only run the default fast suite; treat the eval suite as a manual
-pre-submission check.
-
-**Frontend** (requires Node 20):
-```bash
-cd frontend
-npm install
-npm test
-```
+A local Ollama/Gemma backend is also available for dev use (no external API dependency) — see [Local model backend](#local-model-backend). Not used in the deployed demo.
 
 ---
 
-## Production Setup
+## What it does
 
-1. Copy the env template:
-   ```bash
-   cp .env.prod.example .env.prod
-   ```
+**Single verify** — upload a label image or capture one with a camera. Camera capture auto-fills the application-data form by reading the label (flagged as unconfirmed until the agent reviews/edits each field — see [Camera auto-fill](#camera-auto-fill)). Submit to get a per-field pass/fail/warning/unreadable result.
 
-2. Edit `.env.prod`:
-   - Set `GEMINI_API_KEY` (get from Google AI Studio)
-   - Set `APP_ACCESS_KEY` to a strong random password
-   - Set `FRONTEND_URL` to your domain
+**Batch verify** — upload many label images, each with its own application data (manual entry or CSV import matched by filename). Results stream in as each label completes. Triage view: live summary counts, problem labels sorted to the top, click to expand full detail.
 
-3. Start:
-   ```bash
-   docker compose -f docker-compose.prod.yml up --build -d
-   ```
-
-Nginx listens on port 80 and proxies:
-- `/api/*` → FastAPI backend
-- `/` → Angular frontend (served by nginx inside the frontend container)
-
-For HTTPS, add a Certbot/Let's Encrypt container or terminate TLS at a load balancer.
+**Stress test** — generates a configurable batch (up to 100) of realistic synthetic labels and runs them through the real verification pipeline, scoring results against known ground truth. Useful for validating changes and demonstrating batch behavior at volume.
 
 ---
 
-## Access Key for Evaluators
+## Approach
 
-The default dev access key is: **`dev-access-key-change-me`**
+Two-step verification per label: a vision model extracts the seven required fields from the image, then each field is judged either by the model (six fields, by meaning) or deterministically in backend code (the government warning, exact string match). The model's opinion never decides pass/fail on the warning — only the exact-match does.
 
-Navigate to http://localhost:4200, enter this key on the login page.
-
-### Quick Test with Sample Labels
-
-Three sample labels are included in `backend/app/data/samples/`:
-
-| File | Expected Outcome |
-|------|-----------------|
-| `01_stones_throw_pass.svg` | **APPROVED** — all fields match |
-| `02_missing_warning_fail.svg` | **REJECTED** — government warning absent |
-| `03_title_case_warning_fail.svg` | **REJECTED** — warning uses title case instead of ALL CAPS |
-
-Sample application data for each is in `backend/app/data/samples/data.json`. The
-Stress Test page (`/stress-test`) exercises all three automatically — generating
-label images from them (with some deliberately corrupted or blanked application
-data) and running them through real batch verification.
+Batch and single-verify share the same underlying verification call; batch is a bounded-concurrency, streaming wrapper around it, not a separate implementation.
 
 ---
 
-## Known Limitations
+## Requirement traceability
 
-- **Free tier rate limiting**: Gemini's free tier allows 15 RPM. For batches larger than ~4 labels, aiolimiter + tenacity will queue and retry automatically — this adds latency. This is an intentional architectural trade-off: correctness (no dropped requests) over raw speed. The `RATE_LIMIT_RPM` env var can be raised on a paid tier.
-
-- **Single application data for batch**: The batch endpoint applies one set of application data to all uploaded labels. Labels with different applications should be verified individually.
-
-- **No persistent storage**: Images are processed in memory and discarded immediately after the response. There is no audit log or result history — this is by design for the stateless architecture.
-
-- **Vision model accuracy**: LLM-based extraction is not 100% reliable on low-quality or unusual label images. The `unreadable` and `needs_review` statuses exist specifically for these cases.
+| Requirement | Status |
+|---|---|
+| Format-tolerant matching (Dave) | ✅ Six fields judged by meaning, not string equality |
+| Exact warning text, word-for-word (Jenny) | ✅ Deterministic exact-match, not model judgment |
+| Warning prefix in ALL CAPS (Jenny's specific example) | ✅ Same exact-match; verified against a title-case test case |
+| Warning prefix in bold (Jenny) | ⚠️ Soft signal only — see [limitations](#known-limitations) |
+| Handle imperfect images (Jenny) | ✅ Tested against blur/rotation/compression/contrast; model flags low confidence rather than guessing |
+| ~5 second response (Sarah) | ❌ Not achieved — see [Latency](#latency) |
+| Batch upload, 200–300 labels (Sarah/Janet) | ✅ Concurrent, streaming, per-image data; tested at 100 real labels |
+| Simple UI for low-tech-comfort users (Sarah) | ✅ Triage-first batch view |
+| No COLA integration (Marcus) | ✅ Out of scope, as specified |
+| Firewall / no cloud dependency (Marcus) | ⚠️ Real trade-off — see [Local vs. hosted models](#local-vs-hosted-models) |
 
 ---
 
-## Trade-offs & Assumptions
+## Key technical decisions
 
-- **Fuzzy matching is delegated to the LLM**: Rather than implementing a custom string similarity library, the prompt instructs the model to apply fuzzy matching semantics. This means "750ml" == "750 mL" without any code-level normalization. The trade-off is that the LLM's interpretation of "fuzzy" may vary slightly; the government warning bypasses this by using backend exact-match.
+| Decision | Why |
+|---|---|
+| **Deterministic exact-match for the government warning**, not model judgment | The model is unreliable at self-grading exactness; a hardcoded string comparison against the canonical 27 CFR §16.21 text is not. Verified: the same correct warning passes when transcribed perfectly and fails on a one-character transcription slip — confirming the check is genuinely strict, not fuzzy. |
+| **gpt-4o-mini as default model**, not gpt-4o or gpt-5.4-mini | Cheapest option. Benchmarked against both alternatives specifically on warning-transcription reliability: gpt-4o was more consistent (6/6 vs. measurable non-determinism on mini) at ~16x the cost; gpt-5.4-mini performed worse than both. Mini's occasional transcription noise is a documented, accepted trade-off — see [limitations](#known-limitations). |
+| **Bold-check as a soft signal**, not a hard gate | Bold is a visual attribute a text-extraction pipeline can't reliably verify. The model reports a yes/no/uncertain judgment that can contribute to a "needs review" flag but never causes a hard rejection alone, to avoid false-rejecting compliant labels on a shaky visual call. |
+| **Batch: per-image application data**, not one shared form | Real scenario is many *different* products submitted at once (large importers), not many copies of one label. CSV import matches rows to images by filename. |
+| **Batch: bounded concurrency sized to TPM, not RPM** | Actual OpenAI constraint is tokens-per-minute — at ~30-40k tokens/label, TPM is the binding limit well before request-count limits are. |
+| **OpenAI Batch API rejected** | 50% cheaper but 1-6hr async turnaround; incompatible with the interactive, streaming UX this tool needs. |
+| **Local Ollama backend kept as an alternative, not deployed** | No GPU on the deploy host; CPU inference is too slow to be usable. Kept for the firewall-restricted, no-external-API scenario Marcus described — same interface, swappable backend. |
 
-- **Session auth via cookies, not JWTs**: For a single-team internal tool, an httponly cookie containing the access key is sufficient and simpler than JWT issuance/validation. For a multi-user system, replace with proper identity management.
+---
 
-- **Semaphore = RPM ÷ 4**: The batch semaphore allows `max(1, RATE_LIMIT_RPM // 4)` concurrent inflight calls. At 15 RPM this is 3 concurrent — conservative enough to avoid spikes while keeping latency reasonable. Tune `RATE_LIMIT_RPM` up on a paid tier and the concurrency scales automatically.
+## Latency
+
+Sarah's 5-second bar came from a real prior failure (a vendor pilot at 30-40s/label that agents abandoned). Investigated rather than assumed unsolvable:
+
+- Full app stack (auth, rate limiting, retries, image handling), with the network call mocked out: **10.7ms**.
+- Real network call, no image, minimal tokens: **~6.5s**.
+- Full-size vs. heavily downscaled image, both warm: statistically identical (~6-8s either way).
+
+**Conclusion**: the ~6-8s floor is external (network + OpenAI-side processing) and not reducible by anything in this app. The 5-second target is better served by not blocking on it — batch streams results as each label completes rather than waiting for the slowest one, and the UI shows live progress rather than a bare spinner.
+
+---
+
+## Known limitations
+
+- Government warning bold-check is a probabilistic visual judgment, not guaranteed.
+- gpt-4o-mini shows measurable transcription non-determinism on the warning field — same input can occasionally produce a different pass/fail across runs. gpt-4o is more consistent at higher cost.
+- Exact-match strictness means a genuinely compliant but poorly-photographed label can fail the warning check and require human review. Deliberate: false-reject is the safer default for this field.
+- `OPENAI_IMAGE_DETAIL=low` was only validated on clean synthetic labels, not real photographs; `high` is the production default.
+- A few pre-existing backend test failures exist on a clean checkout, unrelated to this project's changes (test-suite mocking issues).
+- Local Ollama/Gemma backend isn't part of the deployed environment — no GPU on the host.
+
+---
+
+## Camera auto-fill
+
+Auto-filling application data from the same label being verified would make verification circular. Auto-filled fields are marked unconfirmed (visually flagged, banner shown) and only clear once the agent actually edits or confirms them — the human check against the real application record is what makes this non-circular, not the auto-fill itself.
+
+---
+
+## Assumptions
+
+- Standalone prototype, no COLA integration, per Marcus's scoping.
+- All test labels are synthetic; no real applicant data used.
+- Human review is expected on every result — this tool triages, it doesn't auto-approve.
+- A real TTB deployment would likely need the local-model path given the firewall constraint described; this app's OpenAI/Ollama backends share one interface specifically to keep that option open.
+
+---
+
+## Deployment
+
+Frontend and backend served from a single origin (Angular static build + FastAPI behind one nginx instance) to avoid cross-origin auth complications. Only the OpenAI backend is deployed. See `/deploy` for the production compose file and nginx config.
+
+---
+
+## Local model backend
+
+Set `VISION_MODEL` in `.env.dev` to switch to the local Ollama/Gemma path (see `.env.dev.example`). Requires a local GPU for usable performance; dev-only.
