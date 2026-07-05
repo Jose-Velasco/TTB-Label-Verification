@@ -5,9 +5,12 @@ import {
   ViewChild,
   ElementRef,
   OnDestroy,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ApiService } from '../../../core/services/api.service';
+import { ExtractedApplicationData } from '../../../models/label.models';
 
 @Component({
   selector: 'app-camera-capture',
@@ -23,6 +26,10 @@ import { CommonModule } from '@angular/common';
 
       <div *ngIf="error()" class="alert-error" style="margin-top:0.5rem">{{ error() }}</div>
 
+      <!-- Always in the DOM (not gated behind *ngIf="captured()") so capture()
+           can read it via ViewChild the moment the user clicks Capture. -->
+      <canvas #canvasEl style="display:none"></canvas>
+
       <div *ngIf="streaming()" style="margin-top:0.75rem">
         <video #videoEl autoplay playsinline style="width:100%;border-radius:0.5rem;border:1px solid var(--border)"></video>
         <div style="display:flex;gap:0.75rem;margin-top:0.75rem">
@@ -32,10 +39,15 @@ import { CommonModule } from '@angular/common';
       </div>
 
       <div *ngIf="captured()" style="margin-top:0.75rem">
-        <canvas #canvasEl style="display:none"></canvas>
         <img [src]="capturedDataUrl()" alt="Captured" style="width:100%;border-radius:0.5rem;border:1px solid var(--border)" />
+
+        <div *ngIf="extracting()" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.75rem;color:var(--text-muted);font-size:0.875rem">
+          <span class="spinner" style="border-color:rgba(37,99,235,0.2);border-top-color:var(--primary)"></span>
+          Reading label fields…
+        </div>
+        <div *ngIf="extractError()" class="alert-warning" style="margin-top:0.75rem">{{ extractError() }}</div>
+
         <div style="display:flex;gap:0.75rem;margin-top:0.75rem">
-          <button class="btn btn-primary" (click)="useCapture()">Use This Photo</button>
           <button class="btn btn-secondary" (click)="retake()">Retake</button>
         </div>
       </div>
@@ -44,16 +56,20 @@ import { CommonModule } from '@angular/common';
 })
 export class CameraCaptureComponent implements OnDestroy {
   @Output() fileSelected = new EventEmitter<File>();
+  @Output() extracted = new EventEmitter<ExtractedApplicationData>();
   @ViewChild('videoEl') videoEl!: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl') canvasEl!: ElementRef<HTMLCanvasElement>;
+
+  private readonly api = inject(ApiService);
 
   streaming = signal(false);
   captured = signal(false);
   capturedDataUrl = signal<string | null>(null);
   error = signal<string | null>(null);
+  extracting = signal(false);
+  extractError = signal<string | null>(null);
 
   private stream: MediaStream | null = null;
-  private capturedBlob: Blob | null = null;
 
   async startCamera(): Promise<void> {
     this.error.set(null);
@@ -85,29 +101,47 @@ export class CameraCaptureComponent implements OnDestroy {
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
-        this.capturedBlob = blob;
+        const file = new File([blob], `capture-${Date.now()}.jpg`, {
+          type: 'image/jpeg',
+        });
+
         this.capturedDataUrl.set(canvas.toDataURL('image/jpeg'));
         this.streaming.set(false);
         this.captured.set(true);
         this.stopStream();
+
+        // The captured frame becomes the verify-flow's label image
+        // immediately, the same way Upload does it — extraction below is a
+        // best-effort form accelerator layered on top, not a precondition.
+        this.fileSelected.emit(file);
+        this.runExtraction(file);
       },
       'image/jpeg',
       0.92,
     );
   }
 
-  useCapture(): void {
-    if (!this.capturedBlob) return;
-    const file = new File([this.capturedBlob], `capture-${Date.now()}.jpg`, {
-      type: 'image/jpeg',
+  private runExtraction(file: File): void {
+    this.extracting.set(true);
+    this.extractError.set(null);
+    this.api.extract(file).subscribe({
+      next: (data) => {
+        this.extracting.set(false);
+        this.extracted.emit(data);
+      },
+      error: () => {
+        this.extracting.set(false);
+        this.extractError.set(
+          'Could not read fields from photo — enter them manually.',
+        );
+      },
     });
-    this.fileSelected.emit(file);
   }
 
   retake(): void {
     this.captured.set(false);
     this.capturedDataUrl.set(null);
-    this.capturedBlob = null;
+    this.extractError.set(null);
     this.startCamera();
   }
 

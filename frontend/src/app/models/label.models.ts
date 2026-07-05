@@ -14,6 +14,16 @@ export interface ApplicationData {
   government_warning: string;
 }
 
+export interface ExtractedApplicationData {
+  brand_name: string | null;
+  class_type: string | null;
+  alcohol_content: string | null;
+  net_contents: string | null;
+  bottler_info: string | null;
+  country_of_origin: string | null;
+  government_warning: string | null;
+}
+
 export interface FieldResult {
   status: FieldStatus;
   extracted_value: string | null;

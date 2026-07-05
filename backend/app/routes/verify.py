@@ -13,7 +13,7 @@ from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.constants import AUTH_COOKIE_NAME
-from app.models import ApplicationData, VerificationResult
+from app.models import ApplicationData, ExtractedApplicationData, VerificationResult
 from app.services.verification import VerificationService
 
 router = APIRouter(prefix="/api", tags=["verify"])
@@ -56,3 +56,21 @@ async def verify_label(
         raise HTTPException(status_code=422, detail=f"Invalid application_data: {exc}")
 
     return await service.verify_single(image, app_data)
+
+
+@router.post("/extract", response_model=ExtractedApplicationData)
+@limiter.limit("10/minute")
+async def extract_label_fields(
+    request: Request,  # required by slowapi for rate limiting
+    image: UploadFile = File(
+        ..., description="Label image (JPEG, PNG, or WebP, max 10 MB)"
+    ),
+    _auth: None = Depends(_require_auth),
+    service: VerificationService = Depends(_get_service),
+) -> ExtractedApplicationData:
+    """Read the 7 application-data fields off a label photo.
+
+    A data-entry accelerator for the Application Data form — there's no
+    application data to compare against yet, so this is extraction only.
+    """
+    return await service.extract_fields(image)

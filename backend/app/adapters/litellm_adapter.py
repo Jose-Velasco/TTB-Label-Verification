@@ -14,7 +14,8 @@ from tenacity import (
 )
 
 from app.config import Settings
-from app.models import ApplicationData, VerificationResult
+from app.models import ApplicationData, ExtractedApplicationData, VerificationResult
+from app.prompts.extract_prompt import build_extract_prompt, parse_extraction_response
 from app.prompts.verify_prompt import build_verify_prompt, parse_verification_response
 
 # --- Retry tuning for RateLimitError vs. other transient errors ---
@@ -335,3 +336,42 @@ class LiteLLMVisionAdapter:
 
         raw = response.choices[0].message.content
         return parse_verification_response(raw, application_data)
+
+    @retry(
+        retry=retry_if_exception_type(
+            (litellm.RateLimitError, litellm.ServiceUnavailableError)
+        ),
+        wait=_wait_for_verify_retry,
+        stop=_stop_for_verify_retry,
+    )
+    async def extract_fields(
+        self,
+        image_b64: str,
+        image_mime: str,
+    ) -> ExtractedApplicationData:
+        """Read the 7 application-data fields off a label image with no
+        expected values to compare against — used to pre-populate the
+        application-data form from a freshly captured/uploaded photo.
+        """
+        image_url = self._build_image_url(image_b64, image_mime)
+        async with self.limiter:
+            response = await litellm.acompletion(
+                model=self.settings.VISION_MODEL,
+                api_base=self._resolve_api_base(),
+                api_key=self._resolve_api_key(),
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": image_url},
+                            {"type": "text", "text": build_extract_prompt()},
+                        ],
+                    }
+                ],
+                response_format={"type": "json_object"},
+                max_tokens=1024,
+                **self._thinking_kwargs(),
+            )
+
+        raw = response.choices[0].message.content
+        return parse_extraction_response(raw)

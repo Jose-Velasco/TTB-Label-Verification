@@ -2,7 +2,11 @@ import { HttpClient } from "@angular/common/http";
 import { Injectable, inject } from "@angular/core";
 import { Observable } from "rxjs";
 import { environment } from "../../../environments/environment";
-import { ApplicationData, VerificationResult } from "../../models/label.models";
+import {
+  ApplicationData,
+  ExtractedApplicationData,
+  VerificationResult,
+} from "../../models/label.models";
 
 @Injectable({ providedIn: "root" })
 export class ApiService {
@@ -25,6 +29,12 @@ export class ApiService {
     fd.append("image", file);
     fd.append("application_data", JSON.stringify(applicationData));
     return this.http.post<VerificationResult>(`${this.base}/verify`, fd);
+  }
+
+  extract(file: File): Observable<ExtractedApplicationData> {
+    const fd = new FormData();
+    fd.append("image", file);
+    return this.http.post<ExtractedApplicationData>(`${this.base}/extract`, fd);
   }
 
   // NDJSON streaming via fetch() + ReadableStream — HttpClient doesn't support

@@ -3,7 +3,11 @@ import { Component, inject, signal } from "@angular/core";
 import { Router, RouterLink, RouterLinkActive } from "@angular/router";
 import { ApiService } from "../../core/services/api.service";
 import { AuthService } from "../../core/services/auth.service";
-import { ApplicationData, VerificationResult } from "../../models/label.models";
+import {
+  ApplicationData,
+  ExtractedApplicationData,
+  VerificationResult,
+} from "../../models/label.models";
 import { ApplicationFormComponent } from "../../shared/components/application-form/application-form.component";
 import { CameraCaptureComponent } from "../../shared/components/camera-capture/camera-capture.component";
 import { LabelUploaderComponent } from "../../shared/components/label-uploader/label-uploader.component";
@@ -47,7 +51,10 @@ import { VerificationResultComponent } from "../../shared/components/verificatio
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
         <div>
-          <app-application-form (saved)="onAppDataSaved($event)" />
+          <app-application-form
+            (saved)="onAppDataSaved($event)"
+            [autoFill]="extractedData()"
+          />
 
           <div
             *ngIf="appData()"
@@ -92,6 +99,7 @@ import { VerificationResultComponent } from "../../shared/components/verificatio
             <app-camera-capture
               *ngIf="inputMode() === 'camera'"
               (fileSelected)="onFileSelected($event)"
+              (extracted)="onExtracted($event)"
             />
           </div>
 
@@ -139,9 +147,14 @@ export class VerifyComponent {
   loading = signal(false);
   error = signal<string | null>(null);
   result = signal<VerificationResult | null>(null);
+  extractedData = signal<ExtractedApplicationData | null>(null);
 
   onAppDataSaved(data: ApplicationData): void {
     this.appData.set(data);
+  }
+
+  onExtracted(data: ExtractedApplicationData): void {
+    this.extractedData.set(data);
   }
 
   onFileSelected(file: File): void {

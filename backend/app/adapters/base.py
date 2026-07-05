@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable
 
-from app.models import ApplicationData, VerificationResult
+from app.models import ApplicationData, ExtractedApplicationData, VerificationResult
 
 
 @runtime_checkable
@@ -13,6 +13,12 @@ class VisionProvider(Protocol):
         image_mime: str,
         application_data: ApplicationData,
     ) -> VerificationResult: ...
+
+    async def extract_fields(
+        self,
+        image_b64: str,
+        image_mime: str,
+    ) -> ExtractedApplicationData: ...
 
     def max_safe_concurrency(self) -> int:
         """Max in-flight requests a batch run should allow concurrently,

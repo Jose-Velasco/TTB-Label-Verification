@@ -1,5 +1,6 @@
 from .label import (
     ApplicationData,
+    ExtractedApplicationData,
     FieldResult,
     FieldStatus,
     OverallStatus,
@@ -8,6 +9,7 @@ from .label import (
 
 __all__ = [
     "ApplicationData",
+    "ExtractedApplicationData",
     "FieldResult",
     "FieldStatus",
     "OverallStatus",

@@ -29,6 +29,23 @@ class ApplicationData(BaseModel):
     government_warning: str = Field(..., description="Full government warning text as it should appear")
 
 
+class ExtractedApplicationData(BaseModel):
+    """Fields read off a photographed label via /api/extract.
+
+    A data-entry accelerator, not authoritative data — any field may be null
+    if the model couldn't read it, and the agent must confirm/correct these
+    against the actual application before verifying.
+    """
+
+    brand_name: Optional[str] = None
+    class_type: Optional[str] = None
+    alcohol_content: Optional[str] = None
+    net_contents: Optional[str] = None
+    bottler_info: Optional[str] = None
+    country_of_origin: Optional[str] = None
+    government_warning: Optional[str] = None
+
+
 class FieldResult(BaseModel):
     """Verification result for a single label field."""
 

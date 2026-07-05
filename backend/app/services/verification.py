@@ -9,7 +9,12 @@ from fastapi import UploadFile
 from app.adapters.base import VisionProvider
 from app.config import Settings
 from app.constants import ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES
-from app.models import ApplicationData, OverallStatus, VerificationResult
+from app.models import (
+    ApplicationData,
+    ExtractedApplicationData,
+    OverallStatus,
+    VerificationResult,
+)
 from app.prompts.verify_prompt import _make_needs_review_result
 
 logger = logging.getLogger(__name__)
@@ -41,6 +46,21 @@ class VerificationService:
         result.processing_time_ms = (time.monotonic() - start) * 1000
         result.filename = file.filename
         return result
+
+    async def extract_fields(self, file: UploadFile) -> ExtractedApplicationData:
+        """Read application-data fields off a label photo, with no expected
+        values to compare against yet — a data-entry accelerator for the
+        Application Data form, not authoritative data.
+        """
+        try:
+            image_b64, mime_type = await _read_and_encode(file)
+            return await self.provider.extract_fields(image_b64, mime_type)
+        except ValueError as exc:
+            logger.warning(f"Field extraction rejected input: {exc}")
+            return ExtractedApplicationData()
+        except Exception as exc:
+            logger.exception(f"Unexpected error during field extraction: {exc}")
+            return ExtractedApplicationData()
 
     async def verify_batch(
         self,
