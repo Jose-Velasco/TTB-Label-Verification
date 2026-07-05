@@ -50,12 +50,12 @@ class VerificationService:
         """Verify multiple labels concurrently, yielding each result as soon as
         its own task finishes — not after the whole batch completes.
 
-        Concurrency is bounded by a semaphore derived from RATE_LIMIT_RPM so the
-        batch doesn't exhaust the provider's per-minute quota all at once.
+        Concurrency is bounded by the provider's own max_safe_concurrency() —
+        e.g. RPM-derived for Gemini/Ollama, or whichever of RPM/TPM is more
+        restrictive on the real OpenAI path (see LiteLLMVisionAdapter) — so
+        the batch doesn't exhaust the provider's per-minute quota all at once.
         """
-        # Reserve at most 25% of the RPM budget for concurrent inflight calls
-        max_concurrent = max(1, self.settings.RATE_LIMIT_RPM // 4)
-        semaphore = asyncio.Semaphore(max_concurrent)
+        semaphore = asyncio.Semaphore(self.provider.max_safe_concurrency())
 
         results_queue: asyncio.Queue[VerificationResult | None] = asyncio.Queue()
 

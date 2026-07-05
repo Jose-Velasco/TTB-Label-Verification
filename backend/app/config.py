@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_RPM: int = 15
 
+    # Tokens-per-minute ceiling for the real OpenAI API (Tier 1 gpt-4o-mini
+    # default: 200k). Ignored on the Gemini/Ollama paths — only OpenAI meters
+    # vision requests this way. For a fixed prompt, TPM (not RPM) is usually
+    # the real throughput ceiling for image-heavy vision calls: see
+    # LiteLLMVisionAdapter.max_safe_concurrency().
+    OPENAI_TPM_LIMIT: int = 200_000
+
     # Auth
     APP_ACCESS_KEY: str = "changeme"
 
