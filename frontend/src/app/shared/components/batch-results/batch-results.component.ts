@@ -34,6 +34,10 @@ const FIELD_ORDER: (keyof VerificationResult)[] = [
         <span class="batch-summary-count" style="color:var(--fail)">{{ rejectedCount }} Rejected</span>
         <span class="batch-summary-sep">·</span>
         <span class="batch-summary-count" style="color:var(--warning)">{{ needsReviewCount }} Needs Review</span>
+        <ng-container *ngIf="avgProcessingTimeSec as avgSec">
+          <span class="batch-summary-sep">·</span>
+          <span class="batch-summary-avg-time">avg {{ avgSec }}s/label</span>
+        </ng-container>
       </div>
       <div class="batch-summary-pending" *ngIf="pendingCount > 0">
         <span
@@ -76,17 +80,24 @@ const FIELD_ORDER: (keyof VerificationResult)[] = [
             class="spinner"
             style="width:1.25rem;height:1.25rem;border-color:rgba(0,0,0,.15);border-top-color:var(--primary)"
           ></span>
-          <span *ngIf="item.status === 'done' && item.result" [class]="'badge badge-' + item.result.overall_status">
+          <span *ngIf="item.status === 'done' && item.result?.skipped" class="badge badge-warning">Skipped</span>
+          <span
+            *ngIf="item.status === 'done' && item.result && !item.result.skipped"
+            [class]="'badge badge-' + item.result.overall_status"
+          >
             {{ overallStatusLabel(item.result.overall_status) | titlecase }}
           </span>
           <span *ngIf="item.status === 'error'" class="badge badge-fail">Error</span>
         </span>
 
         <span class="batch-row-text">
-          <span class="batch-row-filename">{{ item.filename }}</span>
+          <span class="batch-row-filename">{{ rowTitle(item) }}</span>
+          <span class="batch-row-summary" *ngIf="item.status === 'done' && item.result?.skipped">
+            No application data provided for this filename — skipped
+          </span>
           <span
             class="batch-row-summary"
-            *ngIf="item.status === 'done' && item.result && item.result.overall_status !== 'approved'"
+            *ngIf="item.status === 'done' && item.result && !item.result.skipped && item.result.overall_status !== 'approved'"
           >
             {{ summaryLine(item.result) }}
           </span>
@@ -134,6 +145,15 @@ export class BatchResultsComponent {
     return this.items.filter((i) => i.status === 'pending').length;
   }
 
+  get avgProcessingTimeSec(): string | null {
+    const times = this.items
+      .map((i) => i.result?.processing_time_ms)
+      .filter((ms): ms is number => ms != null);
+    if (!times.length) return null;
+    const avgMs = times.reduce((sum, ms) => sum + ms, 0) / times.length;
+    return (avgMs / 1000).toFixed(1);
+  }
+
   get attentionCount(): number {
     return this.items.filter((i) => this.needsAttention(i)).length;
   }
@@ -163,6 +183,11 @@ export class BatchResultsComponent {
 
   isExpanded(item: BatchProgressItem): boolean {
     return this.expandedFilenames().has(item.filename);
+  }
+
+  rowTitle(item: BatchProgressItem): string {
+    const brand = item.result && !item.result.skipped ? item.result.brand_name.expected_value : '';
+    return brand ? `${brand} — ${item.filename}` : item.filename;
   }
 
   overallStatusLabel(status: OverallStatus): string {
