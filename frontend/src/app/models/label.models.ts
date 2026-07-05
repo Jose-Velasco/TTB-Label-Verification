@@ -43,4 +43,5 @@ export interface VerificationResult {
   processing_time_ms: number | null;
   image_quality_note: string | null;
   filename: string | null;
+  skipped: boolean;
 }

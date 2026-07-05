@@ -41,12 +41,12 @@ export class ApiService {
   // line-by-line streaming, so we wrap native fetch in an Observable instead.
   verifyBatch(
     files: File[],
-    applicationData: ApplicationData,
+    applicationDataByFilename: Record<string, ApplicationData>,
   ): Observable<VerificationResult> {
     return new Observable<VerificationResult>((observer) => {
       const fd = new FormData();
       files.forEach((f) => fd.append("images", f));
-      fd.append("application_data", JSON.stringify(applicationData));
+      fd.append("application_data_map", JSON.stringify(applicationDataByFilename));
 
       const controller = new AbortController();
 

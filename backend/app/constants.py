@@ -7,6 +7,7 @@ CANONICAL_GOVERNMENT_WARNING = (
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_BATCH_IMAGES = 150
 
 AUTH_COOKIE_NAME = "ttb_auth"
 AUTH_COOKIE_MAX_AGE = 60 * 60 * 8  # 8 hours

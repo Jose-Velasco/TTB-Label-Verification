@@ -257,6 +257,35 @@ def _make_needs_review_result(
     )
 
 
+def _make_skipped_result(filename: str | None, reason: str) -> VerificationResult:
+    """Result for a batch image with no matching application data.
+
+    Distinct from _make_needs_review_result: that one represents a model/
+    parsing failure after an actual vision call; this one is a data-entry
+    gap caught before any call is made, so there's no application data to
+    populate expected_value with (left blank rather than guessed).
+    """
+    placeholder = FieldResult(
+        status=FieldStatus.unreadable,
+        extracted_value=None,
+        expected_value="",
+        note=reason,
+    )
+    return VerificationResult(
+        overall_status=OverallStatus.needs_review,
+        brand_name=placeholder,
+        class_type=placeholder,
+        alcohol_content=placeholder,
+        net_contents=placeholder,
+        bottler_info=placeholder,
+        country_of_origin=placeholder,
+        government_warning=placeholder,
+        image_quality_note=reason,
+        filename=filename,
+        skipped=True,
+    )
+
+
 def parse_verification_response(
     raw: str, application_data: ApplicationData
 ) -> VerificationResult:

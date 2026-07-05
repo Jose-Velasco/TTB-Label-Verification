@@ -15,7 +15,7 @@ from app.models import (
     OverallStatus,
     VerificationResult,
 )
-from app.prompts.verify_prompt import _make_needs_review_result
+from app.prompts.verify_prompt import _make_needs_review_result, _make_skipped_result
 
 logger = logging.getLogger(__name__)
 
@@ -65,10 +65,11 @@ class VerificationService:
     async def verify_batch(
         self,
         files: list[UploadFile],
-        application_data: ApplicationData,
+        application_data_map: dict[str, ApplicationData],
     ) -> AsyncIterator[VerificationResult]:
-        """Verify multiple labels concurrently, yielding each result as soon as
-        its own task finishes — not after the whole batch completes.
+        """Verify multiple labels concurrently, each against its OWN
+        application data (matched by filename), yielding each result as soon
+        as its own task finishes — not after the whole batch completes.
 
         Concurrency is bounded by the provider's own max_safe_concurrency() —
         e.g. RPM-derived for Gemini/Ollama, or whichever of RPM/TPM is more
@@ -83,6 +84,17 @@ class VerificationService:
             # Each task enqueues its own result the moment it finishes, so
             # completions can be consumed as they arrive instead of waiting
             # for the slowest task in the batch.
+            application_data = application_data_map.get(f.filename or "")
+            if application_data is None:
+                # No matching application data for this filename — skip the
+                # vision-model call entirely rather than burning API budget
+                # comparing an image against nothing.
+                result = _make_skipped_result(
+                    f.filename, "No application data provided for this filename."
+                )
+                await results_queue.put(result)
+                return
+
             async with semaphore:
                 try:
                     result = await self.verify_single(f, application_data)

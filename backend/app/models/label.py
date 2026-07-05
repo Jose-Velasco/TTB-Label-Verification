@@ -73,6 +73,13 @@ class VerificationResult(BaseModel):
         None, description="Note when image quality prevents reliable extraction"
     )
     filename: Optional[str] = None
+    skipped: bool = Field(
+        False,
+        description=(
+            "True when this image was excluded from vision verification "
+            "because no application data matched its filename in the batch"
+        ),
+    )
 
     @property
     def computed_overall_status(self) -> OverallStatus:
