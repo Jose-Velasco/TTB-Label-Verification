@@ -158,6 +158,13 @@ There are two groups of fields, and they are handled DIFFERENTLY:
          transcribe the legible part and note which portion is uncertain.
    - Do not invent or assume standard wording you cannot actually see.
 
+8. BOLD CHECK. Separately judge whether the literal "GOVERNMENT WARNING:"
+   prefix is printed in BOLD - visibly heavier stroke weight than the
+   surrounding warning text.
+     - clearly heavier strokes -> "yes"
+     - clearly same weight     -> "no"
+     - can't tell / warning unreadable -> "uncertain"
+
 Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation
 outside the JSON. Use this exact schema, and fill each field's keys IN THE
 ORDER SHOWN — "extracted_value" MUST be written first, decided from the image
@@ -187,7 +194,8 @@ enough (e.g. "clearly legible").
     "extracted_value": "<full government warning text exactly as printed, decided before comparing; null if unreadable>",
     "reasoning": "<one short clause: reading confidence only, e.g. 'clearly legible'>",
     "status": "pass" | "fail" | "warning" | "unreadable",
-    "note": "<optional explanation for non-pass status>"
+    "note": "<optional explanation for non-pass status>",
+    "prefix_bold": "yes" | "no" | "uncertain"
   }}
 }}
 """
@@ -286,6 +294,16 @@ def _make_skipped_result(filename: str | None, reason: str) -> VerificationResul
     )
 
 
+def _parse_prefix_bold(gw_raw: dict) -> str:
+    """Normalize the model's government_warning.prefix_bold value — a soft
+    signal (see VerificationResult.computed_overall_status), so anything
+    missing or unrecognized falls back to "uncertain" (no penalty) rather
+    than being treated as a hard failure to parse.
+    """
+    value = gw_raw.get("prefix_bold")
+    return value if value in ("yes", "no", "uncertain") else "uncertain"
+
+
 def parse_verification_response(
     raw: str, application_data: ApplicationData
 ) -> VerificationResult:
@@ -322,6 +340,8 @@ def parse_verification_response(
             "government_warning": application_data.government_warning,
         }
 
+        prefix_bold = _parse_prefix_bold(data.get("government_warning", {}))
+
         for name in field_names:
             fd = data.get(name, {})
             status_raw = fd.get("status", "unreadable")
@@ -343,6 +363,7 @@ def parse_verification_response(
                 extracted_value=extracted_value,
                 expected_value=expected_map[name],
                 note=fd.get("note"),
+                prefix_bold=prefix_bold if name == "government_warning" else None,
             )
 
         # Backend applies exact-match for government warning regardless of what the
@@ -358,6 +379,7 @@ def parse_verification_response(
                 extracted_value=gw_field.extracted_value,
                 expected_value=application_data.government_warning,
                 note=gw_result.note,
+                prefix_bold=prefix_bold,
             )
         elif gw_field.status != FieldStatus.unreadable:
             fields["government_warning"] = FieldResult(
@@ -366,6 +388,7 @@ def parse_verification_response(
                 expected_value=application_data.government_warning,
                 note=gw_field.note
                 or "Model did not extract any government warning text.",
+                prefix_bold=prefix_bold,
             )
 
         result = VerificationResult(

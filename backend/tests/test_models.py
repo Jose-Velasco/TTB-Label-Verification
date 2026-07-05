@@ -82,3 +82,47 @@ def test_fail_takes_priority_over_warning():
         net_contents=_make_field(FieldStatus.warning),
     )
     assert result.computed_overall_status == OverallStatus.rejected
+
+
+# --- government_warning.prefix_bold (soft signal, not a hard gate) ---
+
+
+def _make_gw_field(status: FieldStatus, prefix_bold) -> FieldResult:
+    return FieldResult(status=status, extracted_value="x", expected_value="x", prefix_bold=prefix_bold)
+
+
+def test_prefix_bold_no_downgrades_otherwise_approved_to_needs_review():
+    result = _make_result(government_warning=_make_gw_field(FieldStatus.pass_, "no"))
+    assert result.computed_overall_status == OverallStatus.needs_review
+
+
+def test_prefix_bold_yes_keeps_approved():
+    result = _make_result(government_warning=_make_gw_field(FieldStatus.pass_, "yes"))
+    assert result.computed_overall_status == OverallStatus.approved
+
+
+def test_prefix_bold_uncertain_keeps_approved():
+    result = _make_result(government_warning=_make_gw_field(FieldStatus.pass_, "uncertain"))
+    assert result.computed_overall_status == OverallStatus.approved
+
+
+def test_prefix_bold_none_keeps_approved():
+    # e.g. non-government_warning fields, which never set prefix_bold.
+    result = _make_result(government_warning=_make_gw_field(FieldStatus.pass_, None))
+    assert result.computed_overall_status == OverallStatus.approved
+
+
+def test_prefix_bold_no_does_not_override_an_actual_rejection():
+    result = _make_result(
+        brand_name=_make_field(FieldStatus.fail),
+        government_warning=_make_gw_field(FieldStatus.pass_, "no"),
+    )
+    assert result.computed_overall_status == OverallStatus.rejected
+
+
+def test_prefix_bold_no_does_not_override_an_existing_needs_review():
+    result = _make_result(
+        net_contents=_make_field(FieldStatus.warning),
+        government_warning=_make_gw_field(FieldStatus.pass_, "no"),
+    )
+    assert result.computed_overall_status == OverallStatus.needs_review

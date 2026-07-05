@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -55,6 +55,14 @@ class FieldResult(BaseModel):
     )
     expected_value: str = Field(..., description="Value from the application data")
     note: Optional[str] = Field(None, description="Explanation for fail/warning/unreadable status")
+    prefix_bold: Optional[Literal["yes", "no", "uncertain"]] = Field(
+        None,
+        description=(
+            "government_warning only: whether the 'GOVERNMENT WARNING:' prefix is "
+            "printed in bold. A soft signal, not used elsewhere — see "
+            "VerificationResult.computed_overall_status."
+        ),
+    )
 
 
 class VerificationResult(BaseModel):
@@ -97,5 +105,10 @@ class VerificationResult(BaseModel):
         if FieldStatus.fail in statuses:
             return OverallStatus.rejected
         if FieldStatus.warning in statuses or FieldStatus.unreadable in statuses:
+            return OverallStatus.needs_review
+        # Soft signal, not a hard gate: a non-bold "GOVERNMENT WARNING:" prefix
+        # alone never rejects a label, but does merit a human look rather than
+        # silent approval. "uncertain" is ignored (no penalty either way).
+        if self.government_warning.prefix_bold == "no":
             return OverallStatus.needs_review
         return OverallStatus.approved

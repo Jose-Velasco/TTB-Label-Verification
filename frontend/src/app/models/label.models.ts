@@ -29,6 +29,9 @@ export interface FieldResult {
   extracted_value: string | null;
   expected_value: string;
   note: string | null;
+  // government_warning only: whether the "GOVERNMENT WARNING:" prefix is
+  // printed in bold. A soft signal — see VerificationResult.overall_status.
+  prefix_bold: 'yes' | 'no' | 'uncertain' | null;
 }
 
 export interface VerificationResult {
