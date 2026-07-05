@@ -6,7 +6,10 @@ set -euo pipefail
 echo "==> Installing backend dependencies (UV)..."
 sudo chown -R vscode:vscode /home/vscode/.cache/uv
 cd /workspace/backend
-uv sync --dev
+# This project's dev deps are declared as the "dev" extra (PEP 621
+# optional-dependencies), not a PEP 735 dependency-group — `--dev` toggles the
+# latter and is a silent no-op here, leaving pytest etc. uninstalled.
+uv sync --extra dev
 
 echo ""
 echo "✅ Dev container setup complete!"

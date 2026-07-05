@@ -73,13 +73,20 @@ def auth_headers():
 def mock_service():
     service = MagicMock()
     service.verify_single = AsyncMock(return_value=make_mock_result())
+    service.provider.estimate_seconds = MagicMock(return_value=6.0)
+    service.provider.estimate_cost_usd = MagicMock(return_value=0.001)
     return service
 
 
 @pytest.fixture(autouse=True)
 def patch_service(mock_service):
-    with patch("app.routes.verify.get_verification_service", return_value=mock_service), \
-         patch("app.routes.batch.get_verification_service", return_value=mock_service):
+    # verify.py/batch.py/stress_test.py's _get_service() all import
+    # get_verification_service from app.main *inside* the function body (to
+    # avoid a circular import), so it's never a module-level attribute on
+    # any of those route modules for patch() to target — app.main is the one
+    # place it's actually defined, and where the deferred import resolves it
+    # from at call time.
+    with patch("app.main.get_verification_service", return_value=mock_service):
         yield mock_service
 
 
@@ -125,7 +132,61 @@ async def test_login_returns_401_with_wrong_password(client):
     assert response.status_code == 401
 
 
-async def test_verify_batch_returns_ndjson(client, auth_headers, app_data_json, mock_service):
+async def test_stress_test_estimate_returns_projection(client, auth_headers, mock_service):
+    from app.services.stress_test_generator import NUM_UNMATCHED_IMAGES
+
+    response = await client.post(
+        "/api/stress-test/estimate",
+        json={"count": 20},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 20
+    assert body["real_call_count"] == 20 - NUM_UNMATCHED_IMAGES
+    assert body["estimated_seconds"] == 6.0
+    assert body["estimated_cost_usd"] == 0.001
+
+
+async def test_stress_test_estimate_rejects_count_above_cap(client, auth_headers):
+    response = await client.post(
+        "/api/stress-test/estimate",
+        json={"count": 101},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+async def test_stress_test_estimate_requires_auth(client):
+    response = await client.post("/api/stress-test/estimate", json={"count": 20})
+    assert response.status_code == 401
+
+
+async def test_stress_test_run_streams_ndjson(client, auth_headers, mock_service):
+    async def _gen():
+        yield make_mock_result()
+
+    mock_service.verify_batch = MagicMock(return_value=_gen())
+
+    response = await client.post(
+        "/api/stress-test/run",
+        json={"count": 5},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert "ndjson" in response.headers.get("content-type", "")
+
+
+async def test_stress_test_run_rejects_count_above_cap(client, auth_headers):
+    response = await client.post(
+        "/api/stress-test/run",
+        json={"count": 101},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+async def test_verify_batch_returns_ndjson(client, auth_headers, mock_service):
     async def _gen():
         yield make_mock_result()
 
@@ -137,7 +198,7 @@ async def test_verify_batch_returns_ndjson(client, auth_headers, app_data_json, 
             ("images", ("a.jpg", MINIMAL_JPEG, "image/jpeg")),
             ("images", ("b.jpg", MINIMAL_JPEG, "image/jpeg")),
         ],
-        data={"application_data": app_data_json},
+        data={"application_data_map": json.dumps({"a.jpg": SAMPLE_APP_DATA, "b.jpg": SAMPLE_APP_DATA})},
         headers=auth_headers,
     )
     assert response.status_code == 200

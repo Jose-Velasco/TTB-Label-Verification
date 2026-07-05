@@ -7,7 +7,7 @@ from tests.eval._golden_data import load_golden_samples, rasterize_sample_svg
 
 @pytest.fixture(scope="session")
 def golden_samples() -> list[dict]:
-    """The parsed contents of frontend/public/samples/data.json."""
+    """The parsed contents of backend/app/data/samples/data.json."""
     return load_golden_samples()
 
 

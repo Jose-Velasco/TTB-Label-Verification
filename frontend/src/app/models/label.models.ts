@@ -45,3 +45,10 @@ export interface VerificationResult {
   filename: string | null;
   skipped: boolean;
 }
+
+export interface StressTestEstimate {
+  count: number;
+  real_call_count: number;
+  estimated_seconds: number;
+  estimated_cost_usd: number | null;
+}

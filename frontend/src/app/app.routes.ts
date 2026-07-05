@@ -20,5 +20,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/batch/batch.component').then((m) => m.BatchComponent),
   },
+  {
+    path: 'stress-test',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/stress-test/stress-test.component').then(
+        (m) => m.StressTestComponent,
+      ),
+  },
   { path: '**', redirectTo: '/verify' },
 ];

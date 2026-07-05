@@ -1,32 +1,24 @@
-"""Shared helpers for loading golden sample data and rasterizing sample SVGs.
+"""Re-exports the golden-sample loader/rasterizer for the eval suite.
 
-Kept separate from conftest.py because pytest.mark.parametrize needs the sample
-list at collection time, before fixtures are available — both conftest fixtures
-and test module parametrize decorators import from here to avoid re-reading
-data.json in two different ways.
+The canonical implementation lives in app.services.golden_samples — it moved
+there (out of tests/) because the stress-test batch generator needs it at
+production runtime too, and the production Docker image only ships app/, not
+tests/. Kept as a shim (not just updating call sites) so this stays a single
+import path for every test module already using it.
 """
 
-import json
-from pathlib import Path
-from typing import Any
+from app.services.golden_samples import (
+    RASTER_HEIGHT,
+    RASTER_WIDTH,
+    SAMPLES_DIR,
+    load_golden_samples,
+    rasterize_sample_svg,
+)
 
-import cairosvg
-
-SAMPLES_DIR = Path(__file__).resolve().parents[3] / "frontend" / "public" / "samples"
-RASTER_WIDTH = 800
-RASTER_HEIGHT = 1200
-
-
-def load_golden_samples() -> list[dict[str, Any]]:
-    data_path = SAMPLES_DIR / "data.json"
-    return json.loads(data_path.read_text(encoding="utf-8"))
-
-
-def rasterize_sample_svg(filename: str) -> bytes:
-    """Rasterize a sample SVG to PNG bytes — Pillow cannot read SVG directly."""
-    svg_path = SAMPLES_DIR / filename
-    return cairosvg.svg2png(
-        url=str(svg_path),
-        output_width=RASTER_WIDTH,
-        output_height=RASTER_HEIGHT,
-    )
+__all__ = [
+    "RASTER_HEIGHT",
+    "RASTER_WIDTH",
+    "SAMPLES_DIR",
+    "load_golden_samples",
+    "rasterize_sample_svg",
+]

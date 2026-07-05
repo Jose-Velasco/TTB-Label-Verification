@@ -134,7 +134,7 @@ Both backend (`uvicorn --reload`) and frontend (`ng serve --poll 500`) support h
 **Backend** (requires Python 3.12 and UV):
 ```bash
 cd backend
-uv sync --dev
+uv sync --extra dev
 uv run pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
@@ -142,7 +142,7 @@ This runs the fast, fully-mocked unit suite only — no network calls, determini
 safe for CI.
 
 **Golden-sample eval suite** (opt-in, not run by default): exercises the real
-`LiteLLMVisionAdapter` against the sample labels in `frontend/public/samples/`,
+`LiteLLMVisionAdapter` against the sample labels in `backend/app/data/samples/`,
 including deliberately corrupted application data and degraded (blurred, rotated,
 low-contrast, compressed, glare) images. These calls hit a real vision model, so
 they're slow and non-deterministic — they are excluded from the default `pytest
@@ -197,7 +197,7 @@ Navigate to http://localhost:4200, enter this key on the login page.
 
 ### Quick Test with Sample Labels
 
-Three sample labels are included in `frontend/public/samples/`:
+Three sample labels are included in `backend/app/data/samples/`:
 
 | File | Expected Outcome |
 |------|-----------------|
@@ -205,7 +205,10 @@ Three sample labels are included in `frontend/public/samples/`:
 | `02_missing_warning_fail.svg` | **REJECTED** — government warning absent |
 | `03_title_case_warning_fail.svg` | **REJECTED** — warning uses title case instead of ALL CAPS |
 
-Sample application data for each is in `frontend/public/samples/data.json`. Use the "Sample Labels" section on the single-verify page to load them with one click.
+Sample application data for each is in `backend/app/data/samples/data.json`. The
+Stress Test page (`/stress-test`) exercises all three automatically — generating
+label images from them (with some deliberately corrupted or blanked application
+data) and running them through real batch verification.
 
 ---
 

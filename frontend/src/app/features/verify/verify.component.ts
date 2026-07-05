@@ -30,6 +30,7 @@ import { VerificationResultComponent } from "../../shared/components/verificatio
       <nav class="nav">
         <a routerLink="/verify" routerLinkActive="active">Single Verify</a>
         <a routerLink="/batch" routerLinkActive="active">Batch</a>
+        <a routerLink="/stress-test" routerLinkActive="active">Stress Test</a>
         <button
           class="btn btn-secondary"
           style="margin-left:auto;padding:0.375rem 0.875rem;font-size:0.8125rem"

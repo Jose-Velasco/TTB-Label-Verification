@@ -8,7 +8,7 @@ from slowapi.util import get_remote_address
 
 from app.adapters.litellm_adapter import LiteLLMVisionAdapter
 from app.config import settings
-from app.routes import auth_router, batch_router, verify_router
+from app.routes import auth_router, batch_router, stress_test_router, verify_router
 from app.services.verification import VerificationService
 
 # Module-level singleton so routes can resolve it via get_verification_service()
@@ -53,6 +53,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(verify_router)
 app.include_router(batch_router)
+app.include_router(stress_test_router)
 
 
 @app.get("/api/health")

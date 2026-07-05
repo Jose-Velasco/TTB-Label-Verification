@@ -5,6 +5,7 @@ import { environment } from "../../../environments/environment";
 import {
   ApplicationData,
   ExtractedApplicationData,
+  StressTestEstimate,
   VerificationResult,
 } from "../../models/label.models";
 
@@ -39,20 +40,17 @@ export class ApiService {
 
   // NDJSON streaming via fetch() + ReadableStream — HttpClient doesn't support
   // line-by-line streaming, so we wrap native fetch in an Observable instead.
-  verifyBatch(
-    files: File[],
-    applicationDataByFilename: Record<string, ApplicationData>,
-  ): Observable<VerificationResult> {
-    return new Observable<VerificationResult>((observer) => {
-      const fd = new FormData();
-      files.forEach((f) => fd.append("images", f));
-      fd.append("application_data_map", JSON.stringify(applicationDataByFilename));
-
+  // Shared by verifyBatch (multipart, real uploads) and runStressTest (JSON
+  // body, server-generated images) — both endpoints return the exact same
+  // one-VerificationResult-per-line stream shape.
+  private streamNdjson<T>(path: string, body: BodyInit, isJson: boolean): Observable<T> {
+    return new Observable<T>((observer) => {
       const controller = new AbortController();
 
-      fetch(`${this.base}/verify-batch`, {
+      fetch(`${this.base}${path}`, {
         method: "POST",
-        body: fd,
+        body,
+        headers: isJson ? { "Content-Type": "application/json" } : undefined,
         credentials: "include",
         signal: controller.signal,
       })
@@ -60,7 +58,7 @@ export class ApiService {
           if (!response.ok) {
             const text = await response.text().catch(() => response.statusText);
             observer.error(
-              new Error(`Batch request failed: ${response.status} ${text}`),
+              new Error(`Request failed: ${response.status} ${text}`),
             );
             return;
           }
@@ -87,7 +85,7 @@ export class ApiService {
                 const trimmed = line.trim();
                 if (trimmed) {
                   try {
-                    observer.next(JSON.parse(trimmed) as VerificationResult);
+                    observer.next(JSON.parse(trimmed) as T);
                   } catch {
                     // skip malformed lines
                   }
@@ -98,7 +96,7 @@ export class ApiService {
             // flush any remaining content
             if (buffer.trim()) {
               try {
-                observer.next(JSON.parse(buffer.trim()) as VerificationResult);
+                observer.next(JSON.parse(buffer.trim()) as T);
               } catch {
                 // ignore
               }
@@ -115,5 +113,30 @@ export class ApiService {
 
       return () => controller.abort();
     });
+  }
+
+  verifyBatch(
+    files: File[],
+    applicationDataByFilename: Record<string, ApplicationData>,
+  ): Observable<VerificationResult> {
+    const fd = new FormData();
+    files.forEach((f) => fd.append("images", f));
+    fd.append("application_data_map", JSON.stringify(applicationDataByFilename));
+    return this.streamNdjson<VerificationResult>("/verify-batch", fd, false);
+  }
+
+  estimateStressTest(count: number): Observable<StressTestEstimate> {
+    return this.http.post<StressTestEstimate>(`${this.base}/stress-test/estimate`, { count });
+  }
+
+  // Generation and verification both happen server-side in this one
+  // request — see backend/app/routes/stress_test.py — so unlike verifyBatch
+  // there are no files to upload, just the requested count.
+  runStressTest(count: number): Observable<VerificationResult> {
+    return this.streamNdjson<VerificationResult>(
+      "/stress-test/run",
+      JSON.stringify({ count }),
+      true,
+    );
   }
 }

@@ -39,6 +39,18 @@ _TOKENS_PER_TILE = 5667  # gpt-4o-mini cost per 512x512 tile at "high"/"auto"
 _TEXT_OVERHEAD_TOKENS = 700  # prompt text + typical completion, non-image
 _MEASURED_AVG_TOKENS_UNBOUNDED_HIGH_DETAIL = 39_000  # real-world avg, no downscale cap
 
+# --- Pre-run cost/time estimate (see estimate_seconds / estimate_cost_usd) ---
+# Rough empirical average wall-clock time for a single /verify call (model
+# latency, not counting queueing behind other concurrent calls) — used only
+# to give a user a ballpark before they kick off a batch, not a real SLA.
+_ESTIMATED_SECONDS_PER_CALL = 6.0
+# gpt-4o-mini published per-token pricing (USD), approximate and current as
+# of writing. Blended toward the input rate since a /verify call is almost
+# entirely image+prompt tokens with a comparatively small JSON completion
+# (max_tokens=4096, actual usage well under that) — treating the whole
+# estimate as input-priced overstates cost only slightly.
+_OPENAI_GPT4O_MINI_PRICE_PER_TOKEN = 0.15 / 1_000_000
+
 
 def _parse_duration_string(value: str) -> float | None:
     """Parse a compact "1h2m3.4s"-style duration (e.g. litellm/OpenAI's
@@ -216,6 +228,30 @@ class LiteLLMVisionAdapter:
         tokens_per_request = self._estimate_tokens_per_request()
         tpm_bound = max(1, self.settings.OPENAI_TPM_LIMIT // tokens_per_request)
         return min(rpm_bound, tpm_bound)
+
+    def estimate_seconds(self, num_requests: int) -> float:
+        """Rough wall-clock estimate: num_requests calls running
+        max_safe_concurrency() at a time, each taking ~_ESTIMATED_SECONDS_PER_CALL.
+        """
+        if num_requests <= 0:
+            return 0.0
+        concurrency = self.max_safe_concurrency()
+        batches = -(-num_requests // concurrency)  # ceil division
+        return batches * _ESTIMATED_SECONDS_PER_CALL
+
+    def estimate_cost_usd(self, num_requests: int) -> float | None:
+        """Rough USD cost for num_requests calls at current model/detail
+        settings. $0 on the local Ollama path; None on Gemini, whose pricing
+        isn't modeled here.
+        """
+        if num_requests <= 0:
+            return 0.0
+        if self._is_ollama_routed():
+            return 0.0
+        if not self._is_real_openai_model():
+            return None
+        tokens_per_request = self._estimate_tokens_per_request()
+        return num_requests * tokens_per_request * _OPENAI_GPT4O_MINI_PRICE_PER_TOKEN
 
     def _thinking_kwargs(self) -> dict:
         """Extra litellm kwargs to control Gemma 4 thinking mode.

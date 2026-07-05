@@ -50,6 +50,9 @@ def mock_settings():
     s.GEMINI_API_KEY = "test-key"
     s.OPENAI_API_KEY = ""
     s.RATE_LIMIT_RPM = 60
+    s.OPENAI_TPM_LIMIT = 200_000
+    s.OPENAI_IMAGE_DETAIL = "high"
+    s.OPENAI_IMAGE_MAX_DIMENSION = 0
     return s
 
 
@@ -120,3 +123,49 @@ async def test_image_b64_and_mime_passed_to_litellm(adapter):
     image_content = messages[0]["content"][0]
     assert image_content["type"] == "image_url"
     assert f"data:{mime};base64,{b64}" in image_content["image_url"]["url"]
+
+
+def test_estimate_cost_usd_is_none_on_gemini_path(adapter):
+    # mock_settings defaults VISION_MODEL to a gemini/ model — pricing isn't
+    # modeled for that path, so cost is deliberately left unknown rather than
+    # guessed.
+    assert adapter.estimate_cost_usd(10) is None
+
+
+def test_estimate_cost_usd_is_zero_on_ollama_path(mock_settings):
+    from app.adapters.litellm_adapter import LiteLLMVisionAdapter
+
+    mock_settings.VISION_MODEL = "openai/gemma4:e4b-it-qat"
+    mock_settings.USE_OLLAMA_API_BASE = True
+    adapter = LiteLLMVisionAdapter(mock_settings)
+
+    assert adapter.estimate_cost_usd(10) == 0.0
+
+
+def test_estimate_cost_usd_is_positive_on_real_openai_path(mock_settings):
+    from app.adapters.litellm_adapter import LiteLLMVisionAdapter
+
+    mock_settings.VISION_MODEL = "openai/gpt-4o-mini"
+    mock_settings.USE_OLLAMA_API_BASE = False
+    mock_settings.OPENAI_API_KEY = "sk-test"
+    adapter = LiteLLMVisionAdapter(mock_settings)
+
+    cost = adapter.estimate_cost_usd(10)
+    assert cost is not None
+    assert cost > 0
+
+
+def test_estimate_cost_usd_zero_for_zero_requests(adapter):
+    assert adapter.estimate_cost_usd(0) == 0.0
+
+
+def test_estimate_seconds_scales_with_concurrency_batches(mock_settings):
+    from app.adapters.litellm_adapter import LiteLLMVisionAdapter
+
+    mock_settings.RATE_LIMIT_RPM = 4  # max_safe_concurrency() -> max(1, 4//4) = 1
+    mock_settings.VISION_MODEL = "gemini/gemini-2.5-flash"
+    adapter = LiteLLMVisionAdapter(mock_settings)
+
+    # concurrency=1 means 3 requests run strictly one after another: 3 batches.
+    assert adapter.estimate_seconds(3) == pytest.approx(18.0)
+    assert adapter.estimate_seconds(0) == 0.0

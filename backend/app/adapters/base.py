@@ -25,3 +25,14 @@ class VisionProvider(Protocol):
         given this provider's own rate-limit knobs (which vary by backend —
         e.g. only the real OpenAI API meters tokens-per-minute)."""
         ...
+
+    def estimate_seconds(self, num_requests: int) -> float:
+        """Rough wall-clock estimate for running num_requests verify_label
+        calls at this provider's max_safe_concurrency() — for a pre-run
+        cost/time confirmation prompt, not a real SLA."""
+        ...
+
+    def estimate_cost_usd(self, num_requests: int) -> float | None:
+        """Rough USD cost estimate for num_requests verify_label calls, or
+        None when this provider's pricing isn't modeled."""
+        ...
