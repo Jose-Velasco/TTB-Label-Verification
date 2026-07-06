@@ -70,6 +70,20 @@ Camera capture is the only flow with a second call: an extraction-only pass to a
 
 ---
 
+## Tools used
+
+| Tool | Used for | Why this, not the alternative |
+|---|---|---|
+| FastAPI | Backend API | Async-native — fits the streaming NDJSON batch responses naturally; lighter-weight than Django for a scoped prototype |
+| Angular | Frontend | Strong typing and reactive forms suit a structured, field-by-field verification UI well |
+| LiteLLM | Vision model calls | One interface across OpenAI and Ollama — swapping providers is a config change, not a rewrite (see Local model backend) |
+| uv | Python dependency management | Fast, lockfile-based, reproducible installs; integrates cleanly into the multi-stage Docker build |
+| Docker / Compose | Containerization, deploy | Reproducible builds; isolates this app cleanly alongside other services already running on the host |
+| Host nginx + certbot | TLS, reverse proxy | Reuses infrastructure already managing TLS for other apps on this host, rather than running a second, redundant proxy layer per app |
+| aiolimiter + tenacity | Rate limiting, retries | Proactive token-bucket limiting avoids 429s before they happen; tenacity adds backoff for the transient ones that still occur |
+| pytest / Jest | Testing | Standard per-language choice; splits a fast mocked suite (default, CI-safe) from a slow real-model eval suite (opt-in) |
+
+---
 ## Latency
 
 Investigated rather than assumed:
