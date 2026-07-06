@@ -132,6 +132,24 @@ async def test_login_returns_401_with_wrong_password(client):
     assert response.status_code == 401
 
 
+async def test_login_cookie_omits_secure_by_default(client):
+    # Default COOKIE_SECURE=False (local dev over plain HTTP).
+    from app.config import settings
+    response = await client.post("/api/login", json={"password": settings.APP_ACCESS_KEY})
+    assert "Secure" not in response.headers.get("set-cookie", "")
+
+
+async def test_login_cookie_is_secure_when_configured(client):
+    from app.config import settings
+    original = settings.COOKIE_SECURE
+    settings.COOKIE_SECURE = True
+    try:
+        response = await client.post("/api/login", json={"password": settings.APP_ACCESS_KEY})
+        assert "Secure" in response.headers.get("set-cookie", "")
+    finally:
+        settings.COOKIE_SECURE = original
+
+
 async def test_stress_test_estimate_returns_projection(client, auth_headers, mock_service):
     from app.services.stress_test_generator import NUM_UNMATCHED_IMAGES
 

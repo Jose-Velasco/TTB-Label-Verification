@@ -29,12 +29,20 @@ async def login(body: LoginRequest, response: Response) -> dict:
         max_age=AUTH_COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
-        # secure=True in prod — nginx terminates TLS so the backend sees HTTP
+        # secure=True in prod via COOKIE_SECURE — nginx terminates TLS so the
+        # backend itself sees plain HTTP either way; same-origin deployment
+        # (single nginx serving both frontend and /api) means SameSite=Lax is
+        # sufficient, no cross-site cookie handling needed.
+        secure=settings.COOKIE_SECURE,
     )
     return {"status": "ok"}
 
 
 @router.get("/logout")
 async def logout(response: Response) -> dict:
-    response.delete_cookie(key=AUTH_COOKIE_NAME)
+    # Match the same attributes used to set the cookie — some browsers only
+    # honor a delete_cookie() whose Secure/SameSite match the original.
+    response.delete_cookie(
+        key=AUTH_COOKIE_NAME, samesite="lax", secure=settings.COOKIE_SECURE
+    )
     return {"status": "ok"}

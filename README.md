@@ -120,7 +120,7 @@ Auto-filling application data from the same label being verified would make veri
 
 ## Deployment
 
-Frontend and backend served from a single origin (Angular static build + FastAPI behind one nginx instance) to avoid cross-origin auth complications. Only the OpenAI backend is deployed. See `/deploy` for the production compose file and nginx config.
+Frontend and backend served from a single origin (Angular static build + FastAPI behind one nginx instance) to avoid cross-origin auth complications. Only the OpenAI backend is deployed. See `docker-compose.prod.yml` (repo root) plus `deploy/` for the nginx config, TLS/certbot setup, and full deployment guide.
 
 ---
 

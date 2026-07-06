@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     # Auth
     APP_ACCESS_KEY: str = "changeme"
 
+    # Auth cookie's Secure flag — browsers refuse to store an httponly+Secure
+    # cookie set over plain HTTP, so this defaults off for local dev (HTTP)
+    # and must be turned on in .env.prod, where nginx terminates TLS and the
+    # whole app is served over HTTPS.
+    COOKIE_SECURE: bool = False
+
     # CORS
     FRONTEND_URL: str = "http://localhost:3000"
 
